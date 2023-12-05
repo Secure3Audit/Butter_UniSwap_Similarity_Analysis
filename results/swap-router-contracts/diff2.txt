@@ -1,0 +1,25 @@
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/libraries/ButterLegacyLibrary.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/libraries/UniswapV2Library.sol	2023-12-04 18:14:32
+@@ -1,10 +1,10 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.5.0;
+ 
+-import '@butter/v3-periphery/contracts/interfaces/IButterLegacyPair.sol';
+-import '@butter/v3-core/contracts/libraries/LowGasSafeMath.sol';
++import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
++import '@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol';
+ 
+-library ButterLegacyLibrary {
++library UniswapV2Library {
+     using LowGasSafeMath for uint256;
+ 
+     // returns sorted token addresses, used to handle return values from pairs sorted in this order
+@@ -42,7 +42,7 @@
+         address tokenB
+     ) internal view returns (uint256 reserveA, uint256 reserveB) {
+         (address token0, ) = sortTokens(tokenA, tokenB);
+-        (uint256 reserve0, uint256 reserve1, ) = IButterLegacyPair(pairFor(factory, tokenA, tokenB)).getReserves();
++        (uint256 reserve0, uint256 reserve1, ) = IUniswapV2Pair(pairFor(factory, tokenA, tokenB)).getReserves();
+         (reserveA, reserveB) = tokenA == token0 ? (reserve0, reserve1) : (reserve1, reserve0);
+     }
+ 

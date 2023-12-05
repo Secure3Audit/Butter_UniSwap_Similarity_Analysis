@@ -1,0 +1,1218 @@
+Only in target_code/v3-periphery: .gitattributes
+Only in target_code/v3-periphery: .github
+Only in target_code/v3-periphery: .gitignore
+Only in target_code/v3-periphery: .prettierignore
+Only in target_code/v3-periphery: .prettierrc
+Only in target_code/v3-periphery: .solhint.json
+Only in target_code/v3-periphery: .yarnrc
+Only in source_code/swap-contracts/components/v3-periphery: @butter
+Only in target_code/v3-periphery: LICENSE
+Only in target_code/v3-periphery: README.md
+Only in target_code/v3-periphery: audits
+Only in target_code/v3-periphery: bug-bounty.md
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/NonfungiblePositionManager.sol target_code/v3-periphery/contracts/NonfungiblePositionManager.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/NonfungiblePositionManager.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/NonfungiblePositionManager.sol	2023-12-04 18:14:32
+@@ -2,9 +2,9 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/libraries/FixedPoint128.sol';
+-import '@butter/v3-core/contracts/libraries/FullMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/libraries/FixedPoint128.sol';
++import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
+ 
+ import './interfaces/INonfungiblePositionManager.sol';
+ import './interfaces/INonfungibleTokenPositionDescriptor.sol';
+@@ -19,7 +19,7 @@
+ import './base/PoolInitializer.sol';
+ 
+ /// @title NFT positions
+-/// @notice Wraps Butter positions in the ERC721 non-fungible token interface
++/// @notice Wraps Uniswap V3 positions in the ERC721 non-fungible token interface
+ contract NonfungiblePositionManager is
+     INonfungiblePositionManager,
+     Multicall,
+@@ -30,7 +30,7 @@
+     PeripheryValidation,
+     SelfPermit
+ {
+-    // details about the position
++    // details about the uniswap position
+     struct Position {
+         // the nonce for permits
+         uint96 nonce;
+@@ -72,7 +72,7 @@
+         address _factory,
+         address _WETH9,
+         address _tokenDescriptor_
+-    ) ERC721Permit('Butter Positions NFT', 'BUTTER-POS', '1') PeripheryImmutableState(_factory, _WETH9) {
++    ) ERC721Permit('Uniswap V3 Positions NFT-V1', 'UNI-V3-POS', '1') PeripheryImmutableState(_factory, _WETH9) {
+         _tokenDescriptor = _tokenDescriptor_;
+     }
+ 
+@@ -137,7 +137,7 @@
+             uint256 amount1
+         )
+     {
+-        IButterPool pool;
++        IUniswapV3Pool pool;
+         (liquidity, amount0, amount1, pool) = addLiquidity(
+             AddLiquidityParams({
+                 token0: params.token0,
+@@ -210,7 +210,7 @@
+ 
+         PoolAddress.PoolKey memory poolKey = _poolIdToPoolKey[position.poolId];
+ 
+-        IButterPool pool;
++        IUniswapV3Pool pool;
+         (liquidity, amount0, amount1, pool) = addLiquidity(
+             AddLiquidityParams({
+                 token0: poolKey.token0,
+@@ -269,7 +269,7 @@
+         require(positionLiquidity >= params.liquidity);
+ 
+         PoolAddress.PoolKey memory poolKey = _poolIdToPoolKey[position.poolId];
+-        IButterPool pool = IButterPool(PoolAddress.computeAddress(factory, poolKey));
++        IUniswapV3Pool pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
+         (amount0, amount1) = pool.burn(position.tickLower, position.tickUpper, params.liquidity);
+ 
+         require(amount0 >= params.amount0Min && amount1 >= params.amount1Min, 'Price slippage check');
+@@ -321,7 +321,7 @@
+ 
+         PoolAddress.PoolKey memory poolKey = _poolIdToPoolKey[position.poolId];
+ 
+-        IButterPool pool = IButterPool(PoolAddress.computeAddress(factory, poolKey));
++        IUniswapV3Pool pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
+ 
+         (uint128 tokensOwed0, uint128 tokensOwed1) = (position.tokensOwed0, position.tokensOwed1);
+ 
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/NonfungibleTokenPositionDescriptor.sol target_code/v3-periphery/contracts/NonfungibleTokenPositionDescriptor.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/NonfungibleTokenPositionDescriptor.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/NonfungibleTokenPositionDescriptor.sol	2023-12-04 18:14:32
+@@ -2,12 +2,10 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/lib/contracts/libraries/SafeERC20Namer.sol';
+ 
+-// import '@openzeppelin/contracts-upgradeable/proxy/Initializable.sol';
+-
+ import './libraries/ChainId.sol';
+-import './libraries/SafeERC20Namer.sol';
+ import './interfaces/INonfungiblePositionManager.sol';
+ import './interfaces/INonfungibleTokenPositionDescriptor.sol';
+ import './interfaces/IERC20Metadata.sol';
+@@ -18,21 +16,16 @@
+ /// @title Describes NFT token positions
+ /// @notice Produces a string containing the data URI for a JSON metadata string
+ contract NonfungibleTokenPositionDescriptor is INonfungibleTokenPositionDescriptor {
+-    address private constant DAI = 0x48E2c4D04D618aE66e602d0985843071E8a278F9;
+-    address private constant USDC = 0x27e8c30bEE531b5882530e3cA0fE6d5152D5511a;
+-    address private constant USDT = 0x2B2cc59fF1e4300FEfCB3f5aE9293D3347705d91;
+-    address private constant TBTC = 0xEe732EbaB18Fc182fbD7d17ba8947F1D155466De;
+-    address private constant WBTC = 0x5F695625E24762c26124f016ca1d8650fa1f5760;
++    address private constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
++    address private constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
++    address private constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
++    address private constant TBTC = 0x8dAEBADE922dF735c38C80C7eBD708Af50815fAa;
++    address private constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
+ 
+     address public immutable WETH9;
+     /// @dev A null-terminated string
+     bytes32 public immutable nativeCurrencyLabelBytes;
+ 
+-    // function initialize(address _WETH9, bytes32 _nativeCurrencyLabelBytes) initializer public {
+-    //     WETH9 = _WETH9;
+-    //     nativeCurrencyLabelBytes = _nativeCurrencyLabelBytes;
+-    // }
+-
+     constructor(address _WETH9, bytes32 _nativeCurrencyLabelBytes) {
+         WETH9 = _WETH9;
+         nativeCurrencyLabelBytes = _nativeCurrencyLabelBytes;
+@@ -61,8 +54,8 @@
+         (, , address token0, address token1, uint24 fee, int24 tickLower, int24 tickUpper, , , , , ) =
+             positionManager.positions(tokenId);
+ 
+-        IButterPool pool =
+-        IButterPool(
++        IUniswapV3Pool pool =
++            IUniswapV3Pool(
+                 PoolAddress.computeAddress(
+                     positionManager.factory(),
+                     PoolAddress.PoolKey({token0: token0, token1: token1, fee: fee})
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/SwapRouter.sol target_code/v3-periphery/contracts/SwapRouter.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/SwapRouter.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/SwapRouter.sol	2023-12-04 18:14:32
+@@ -2,9 +2,9 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ import './interfaces/ISwapRouter.sol';
+ import './base/PeripheryImmutableState.sol';
+@@ -17,8 +17,8 @@
+ import './libraries/CallbackValidation.sol';
+ import './interfaces/external/IWETH9.sol';
+ 
+-/// @title Butter Swap Router
+-/// @notice Router for stateless execution of swaps
++/// @title Uniswap V3 Swap Router
++/// @notice Router for stateless execution of swaps against Uniswap V3
+ contract SwapRouter is
+     ISwapRouter,
+     PeripheryImmutableState,
+@@ -44,8 +44,8 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) private view returns (IButterPool) {
+-        return IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) private view returns (IUniswapV3Pool) {
++        return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+     struct SwapCallbackData {
+@@ -53,8 +53,8 @@
+         address payer;
+     }
+ 
+-    /// @inheritdoc IButterSwapCallback
+-    function butterSwapCallback(
++    /// @inheritdoc IUniswapV3SwapCallback
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes calldata _data
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/V3Migrator.sol target_code/v3-periphery/contracts/V3Migrator.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/V3Migrator.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/V3Migrator.sol	2023-12-04 18:14:32
+@@ -2,21 +2,21 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/libraries/LowGasSafeMath.sol';
++import '@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol';
++import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
+ 
+ import './interfaces/INonfungiblePositionManager.sol';
+ 
+ import './libraries/TransferHelper.sol';
+ 
+ import './interfaces/IV3Migrator.sol';
+-import './interfaces/IButterLegacyPair.sol';
+ import './base/PeripheryImmutableState.sol';
+ import './base/Multicall.sol';
+ import './base/SelfPermit.sol';
+ import './interfaces/external/IWETH9.sol';
+ import './base/PoolInitializer.sol';
+ 
+-/// @title Butter Migrator
++/// @title Uniswap V3 Migrator
+ contract V3Migrator is IV3Migrator, PeripheryImmutableState, PoolInitializer, Multicall, SelfPermit {
+     using LowGasSafeMath for uint256;
+ 
+@@ -39,8 +39,8 @@
+         require(params.percentageToMigrate <= 100, 'Percentage too large');
+ 
+         // burn v2 liquidity to this address
+-        IButterLegacyPair(params.pair).transferFrom(msg.sender, params.pair, params.liquidityToMigrate);
+-        (uint256 amount0V2, uint256 amount1V2) = IButterLegacyPair(params.pair).burn(address(this));
++        IUniswapV2Pair(params.pair).transferFrom(msg.sender, params.pair, params.liquidityToMigrate);
++        (uint256 amount0V2, uint256 amount1V2) = IUniswapV2Pair(params.pair).burn(address(this));
+ 
+         // calculate the amounts to migrate to v3
+         uint256 amount0V2ToMigrate = amount0V2.mul(params.percentageToMigrate) / 100;
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/base/LiquidityManagement.sol target_code/v3-periphery/contracts/base/LiquidityManagement.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/base/LiquidityManagement.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/base/LiquidityManagement.sol	2023-12-04 18:14:32
+@@ -2,9 +2,9 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterFactory.sol';
+-import '@butter/v3-core/contracts/interfaces/callback/IButterMintCallback.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
+ 
+ import '../libraries/PoolAddress.sol';
+ import '../libraries/CallbackValidation.sol';
+@@ -14,15 +14,15 @@
+ import './PeripheryImmutableState.sol';
+ 
+ /// @title Liquidity management functions
+-/// @notice Internal functions for safely managing liquidity in Butter
+-abstract contract LiquidityManagement is IButterMintCallback, PeripheryImmutableState, PeripheryPayments {
++/// @notice Internal functions for safely managing liquidity in Uniswap V3
++abstract contract LiquidityManagement is IUniswapV3MintCallback, PeripheryImmutableState, PeripheryPayments {
+     struct MintCallbackData {
+         PoolAddress.PoolKey poolKey;
+         address payer;
+     }
+ 
+-    /// @inheritdoc IButterMintCallback
+-    function butterMintCallback(
++    /// @inheritdoc IUniswapV3MintCallback
++    function uniswapV3MintCallback(
+         uint256 amount0Owed,
+         uint256 amount1Owed,
+         bytes calldata data
+@@ -54,13 +54,13 @@
+             uint128 liquidity,
+             uint256 amount0,
+             uint256 amount1,
+-            IButterPool pool
++            IUniswapV3Pool pool
+         )
+     {
+         PoolAddress.PoolKey memory poolKey =
+             PoolAddress.PoolKey({token0: params.token0, token1: params.token1, fee: params.fee});
+ 
+-        pool = IButterPool(PoolAddress.computeAddress(factory, poolKey));
++        pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
+ 
+         // compute the liquidity amount
+         {
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/base/PeripheryPaymentsWithFee.sol target_code/v3-periphery/contracts/base/PeripheryPaymentsWithFee.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/base/PeripheryPaymentsWithFee.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/base/PeripheryPaymentsWithFee.sol	2023-12-04 18:14:32
+@@ -2,7 +2,7 @@
+ pragma solidity >=0.7.5;
+ 
+ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+-import '@butter/v3-core/contracts/libraries/LowGasSafeMath.sol';
++import '@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol';
+ 
+ import './PeripheryPayments.sol';
+ import '../interfaces/IPeripheryPaymentsWithFee.sol';
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/base/PoolInitializer.sol target_code/v3-periphery/contracts/base/PoolInitializer.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/base/PoolInitializer.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/base/PoolInitializer.sol	2023-12-04 18:14:32
+@@ -1,13 +1,13 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity =0.7.6;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterFactory.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ import './PeripheryImmutableState.sol';
+ import '../interfaces/IPoolInitializer.sol';
+ 
+-/// @title Creates and initializes Pools
++/// @title Creates and initializes V3 Pools
+ abstract contract PoolInitializer is IPoolInitializer, PeripheryImmutableState {
+     /// @inheritdoc IPoolInitializer
+     function createAndInitializePoolIfNecessary(
+@@ -17,15 +17,15 @@
+         uint160 sqrtPriceX96
+     ) external payable override returns (address pool) {
+         require(token0 < token1);
+-        pool = IButterFactory(factory).getPool(token0, token1, fee);
++        pool = IUniswapV3Factory(factory).getPool(token0, token1, fee);
+ 
+         if (pool == address(0)) {
+-            pool = IButterFactory(factory).createPool(token0, token1, fee);
+-            IButterPool(pool).initialize(sqrtPriceX96);
++            pool = IUniswapV3Factory(factory).createPool(token0, token1, fee);
++            IUniswapV3Pool(pool).initialize(sqrtPriceX96);
+         } else {
+-            (uint160 sqrtPriceX96Existing, , , , , , ) = IButterPool(pool).slot0();
++            (uint160 sqrtPriceX96Existing, , , , , , ) = IUniswapV3Pool(pool).slot0();
+             if (sqrtPriceX96Existing == 0) {
+-                IButterPool(pool).initialize(sqrtPriceX96);
++                IUniswapV3Pool(pool).initialize(sqrtPriceX96);
+             }
+         }
+     }
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/examples/PairFlash.sol target_code/v3-periphery/contracts/examples/PairFlash.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/examples/PairFlash.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/examples/PairFlash.sol	2023-12-04 18:14:32
+@@ -2,8 +2,8 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/callback/IButterFlashCallback.sol';
+-import '@butter/v3-core/contracts/libraries/LowGasSafeMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3FlashCallback.sol';
++import '@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol';
+ 
+ import '../base/PeripheryPayments.sol';
+ import '../base/PeripheryImmutableState.sol';
+@@ -13,8 +13,8 @@
+ import '../interfaces/ISwapRouter.sol';
+ 
+ /// @title Flash contract implementation
+-/// @notice An example contract using the Butter flash function
+-contract PairFlash is IButterFlashCallback, PeripheryPayments {
++/// @notice An example contract using the Uniswap V3 flash function
++contract PairFlash is IUniswapV3FlashCallback, PeripheryPayments {
+     using LowGasSafeMath for uint256;
+     using LowGasSafeMath for int256;
+ 
+@@ -43,7 +43,7 @@
+     /// @param data The data needed in the callback passed as FlashCallbackData from `initFlash`
+     /// @notice implements the callback called from flash
+     /// @dev fails if the flash is not profitable, meaning the amountOut from the flash is less than the amount borrowed
+-    function butterFlashCallback(
++    function uniswapV3FlashCallback(
+         uint256 fee0,
+         uint256 fee1,
+         bytes calldata data
+@@ -120,11 +120,11 @@
+     }
+ 
+     /// @param params The parameters necessary for flash and the callback, passed in as FlashParams
+-    /// @notice Calls the pools flash function with data needed in `butterFlashCallback`
++    /// @notice Calls the pools flash function with data needed in `uniswapV3FlashCallback`
+     function initFlash(FlashParams memory params) external {
+         PoolAddress.PoolKey memory poolKey =
+             PoolAddress.PoolKey({token0: params.token0, token1: params.token1, fee: params.fee1});
+-        IButterPool pool = IButterPool(PoolAddress.computeAddress(factory, poolKey));
++        IUniswapV3Pool pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
+         // recipient of borrowed amounts
+         // amount of token0 requested to borrow
+         // amount of token1 requested to borrow
+Only in source_code/swap-contracts/components/v3-periphery/contracts/interfaces: IButterLegacyPair.sol
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol target_code/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol	2023-12-04 18:14:32
+@@ -12,7 +12,7 @@
+ import '../libraries/PoolAddress.sol';
+ 
+ /// @title Non-fungible token for positions
+-/// @notice Wraps Butter positions in a non-fungible token interface which allows for them to be transferred
++/// @notice Wraps Uniswap V3 positions in a non-fungible token interface which allows for them to be transferred
+ /// and authorized.
+ interface INonfungiblePositionManager is
+     IPoolInitializer,
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/interfaces/IPeripheryImmutableState.sol target_code/v3-periphery/contracts/interfaces/IPeripheryImmutableState.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/interfaces/IPeripheryImmutableState.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/interfaces/IPeripheryImmutableState.sol	2023-12-04 18:14:32
+@@ -4,7 +4,7 @@
+ /// @title Immutable state
+ /// @notice Functions that return immutable state of the router
+ interface IPeripheryImmutableState {
+-    /// @return Returns the address of the Butter factory
++    /// @return Returns the address of the Uniswap V3 factory
+     function factory() external view returns (address);
+ 
+     /// @return Returns the address of WETH9
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/interfaces/ISwapRouter.sol target_code/v3-periphery/contracts/interfaces/ISwapRouter.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/interfaces/ISwapRouter.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/interfaces/ISwapRouter.sol	2023-12-04 18:14:32
+@@ -2,11 +2,11 @@
+ pragma solidity >=0.7.5;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
+ 
+ /// @title Router token swapping functionality
+-/// @notice Functions for swapping tokens via Butter
+-interface ISwapRouter is IButterSwapCallback {
++/// @notice Functions for swapping tokens via Uniswap V3
++interface ISwapRouter is IUniswapV3SwapCallback {
+     struct ExactInputSingleParams {
+         address tokenIn;
+         address tokenOut;
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/interfaces/IV3Migrator.sol target_code/v3-periphery/contracts/interfaces/IV3Migrator.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/interfaces/IV3Migrator.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/interfaces/IV3Migrator.sol	2023-12-04 18:14:32
+@@ -7,10 +7,10 @@
+ import './IPoolInitializer.sol';
+ 
+ /// @title V3 Migrator
+-/// @notice Enables migration of liqudity from legacy pairs into pools
++/// @notice Enables migration of liqudity from Uniswap v2-compatible pairs into Uniswap v3 pools
+ interface IV3Migrator is IMulticall, ISelfPermit, IPoolInitializer {
+     struct MigrateParams {
+-        address pair; // the legacy pair
++        address pair; // the Uniswap v2-compatible pair
+         uint256 liquidityToMigrate; // expected to be balanceOf(msg.sender)
+         uint8 percentageToMigrate; // represented as a numerator over 100
+         address token0;
+@@ -25,10 +25,10 @@
+         bool refundAsETH;
+     }
+ 
+-    /// @notice Migrates liquidity to v3 by burning legacy liquidity and minting a new position for v3
++    /// @notice Migrates liquidity to v3 by burning v2 liquidity and minting a new position for v3
+     /// @dev Slippage protection is enforced via `amount{0,1}Min`, which should be a discount of the expected values of
+-    /// the maximum amount of v3 liquidity that the legacy liquidity can get. For the special case of migrating to an
++    /// the maximum amount of v3 liquidity that the v2 liquidity can get. For the special case of migrating to an
+     /// out-of-range position, `amount{0,1}Min` may be set to 0, enforcing that the position remains out of range
+-    /// @param params The params necessary to migrate legacy liquidity, encoded as `MigrateParams` in calldata
++    /// @param params The params necessary to migrate v2 liquidity, encoded as `MigrateParams` in calldata
+     function migrate(MigrateParams calldata params) external;
+ }
+Only in source_code/swap-contracts/components/v3-periphery/contracts/lens: ButterInterfaceMulticall.sol
+Only in source_code/swap-contracts/components/v3-periphery/contracts/lens: Multicall2.sol
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/lens/Quoter.sol target_code/v3-periphery/contracts/lens/Quoter.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/lens/Quoter.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/lens/Quoter.sol	2023-12-04 18:14:32
+@@ -2,10 +2,10 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
+ 
+ import '../interfaces/IQuoter.sol';
+ import '../base/PeripheryImmutableState.sol';
+@@ -17,7 +17,7 @@
+ /// @notice Allows getting the expected amount out or amount in for a given swap without executing the swap
+ /// @dev These functions are not gas efficient and should _not_ be called on chain. Instead, optimistically execute
+ /// the swap and check the amounts in the callback.
+-contract Quoter is IQuoter, IButterSwapCallback, PeripheryImmutableState {
++contract Quoter is IQuoter, IUniswapV3SwapCallback, PeripheryImmutableState {
+     using Path for bytes;
+     using SafeCast for uint256;
+ 
+@@ -30,12 +30,12 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) private view returns (IButterPool) {
+-        return IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) private view returns (IUniswapV3Pool) {
++        return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+-    /// @inheritdoc IButterSwapCallback
+-    function butterSwapCallback(
++    /// @inheritdoc IUniswapV3SwapCallback
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes memory path
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/lens/QuoterV2.sol target_code/v3-periphery/contracts/lens/QuoterV2.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/lens/QuoterV2.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/lens/QuoterV2.sol	2023-12-04 18:14:32
+@@ -2,11 +2,11 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/libraries/TickBitmap.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/libraries/TickBitmap.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
+ 
+ import '../interfaces/IQuoterV2.sol';
+ import '../base/PeripheryImmutableState.sol';
+@@ -19,10 +19,10 @@
+ /// @notice Allows getting the expected amount out or amount in for a given swap without executing the swap
+ /// @dev These functions are not gas efficient and should _not_ be called on chain. Instead, optimistically execute
+ /// the swap and check the amounts in the callback.
+-contract QuoterV2 is IQuoterV2, IButterSwapCallback, PeripheryImmutableState {
++contract QuoterV2 is IQuoterV2, IUniswapV3SwapCallback, PeripheryImmutableState {
+     using Path for bytes;
+     using SafeCast for uint256;
+-    using PoolTicksCounter for IButterPool;
++    using PoolTicksCounter for IUniswapV3Pool;
+ 
+     /// @dev Transient storage variable used to check a safety condition in exact output swaps.
+     uint256 private amountOutCached;
+@@ -33,12 +33,12 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) private view returns (IButterPool) {
+-        return IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) private view returns (IUniswapV3Pool) {
++        return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+-    /// @inheritdoc IButterSwapCallback
+-    function butterSwapCallback(
++    /// @inheritdoc IUniswapV3SwapCallback
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes memory path
+@@ -52,7 +52,7 @@
+                 ? (tokenIn < tokenOut, uint256(amount0Delta), uint256(-amount1Delta))
+                 : (tokenOut < tokenIn, uint256(amount1Delta), uint256(-amount0Delta));
+ 
+-        IButterPool pool = getPool(tokenIn, tokenOut, fee);
++        IUniswapV3Pool pool = getPool(tokenIn, tokenOut, fee);
+         (uint160 sqrtPriceX96After, int24 tickAfter, , , , , ) = pool.slot0();
+ 
+         if (isExactInput) {
+@@ -98,7 +98,7 @@
+ 
+     function handleRevert(
+         bytes memory reason,
+-        IButterPool pool,
++        IUniswapV3Pool pool,
+         uint256 gasEstimate
+     )
+         private
+@@ -131,7 +131,7 @@
+         )
+     {
+         bool zeroForOne = params.tokenIn < params.tokenOut;
+-        IButterPool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
++        IUniswapV3Pool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
+ 
+         uint256 gasBefore = gasleft();
+         try
+@@ -205,7 +205,7 @@
+         )
+     {
+         bool zeroForOne = params.tokenIn < params.tokenOut;
+-        IButterPool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
++        IUniswapV3Pool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
+ 
+         // if no price limit has been specified, cache the output amount for comparison in the swap callback
+         if (params.sqrtPriceLimitX96 == 0) amountOutCached = params.amount;
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/lens/TickLens.sol target_code/v3-periphery/contracts/lens/TickLens.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/lens/TickLens.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/lens/TickLens.sol	2023-12-04 18:14:32
+@@ -2,7 +2,7 @@
+ pragma solidity >=0.5.0;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ import '../interfaces/ITickLens.sol';
+ 
+@@ -16,7 +16,7 @@
+         returns (PopulatedTick[] memory populatedTicks)
+     {
+         // fetch bitmap
+-        uint256 bitmap = IButterPool(pool).tickBitmap(tickBitmapIndex);
++        uint256 bitmap = IUniswapV3Pool(pool).tickBitmap(tickBitmapIndex);
+ 
+         // calculate the number of populated ticks
+         uint256 numberOfPopulatedTicks;
+@@ -25,12 +25,12 @@
+         }
+ 
+         // fetch populated tick data
+-        int24 tickSpacing = IButterPool(pool).tickSpacing();
++        int24 tickSpacing = IUniswapV3Pool(pool).tickSpacing();
+         populatedTicks = new PopulatedTick[](numberOfPopulatedTicks);
+         for (uint256 i = 0; i < 256; i++) {
+             if (bitmap & (1 << i) > 0) {
+                 int24 populatedTick = ((int24(tickBitmapIndex) << 8) + int24(i)) * tickSpacing;
+-                (uint128 liquidityGross, int128 liquidityNet, , , , , , ) = IButterPool(pool).ticks(populatedTick);
++                (uint128 liquidityGross, int128 liquidityNet, , , , , , ) = IUniswapV3Pool(pool).ticks(populatedTick);
+                 populatedTicks[--numberOfPopulatedTicks] = PopulatedTick({
+                     tick: populatedTick,
+                     liquidityNet: liquidityNet,
+Only in target_code/v3-periphery/contracts/lens: UniswapInterfaceMulticall.sol
+Only in source_code/swap-contracts/components/v3-periphery/contracts/libraries: AddressStringUtil.sol
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/CallbackValidation.sol target_code/v3-periphery/contracts/libraries/CallbackValidation.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/CallbackValidation.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/CallbackValidation.sol	2023-12-04 18:14:32
+@@ -1,14 +1,13 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity =0.7.6;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ import './PoolAddress.sol';
+ 
+-/// @notice Provides validation for callbacks from Butter Pools
++/// @notice Provides validation for callbacks from Uniswap V3 Pools
+ library CallbackValidation {
+-    /// @notice Returns the address of a valid Pool
+-    /// @param factory The contract address of the Butter factory
++    /// @notice Returns the address of a valid Uniswap V3 Pool
++    /// @param factory The contract address of the Uniswap V3 factory
+     /// @param tokenA The contract address of either token0 or token1
+     /// @param tokenB The contract address of the other token
+     /// @param fee The fee collected upon every swap in the pool, denominated in hundredths of a bip
+@@ -18,20 +17,20 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) internal view returns (IButterPool pool) {
++    ) internal view returns (IUniswapV3Pool pool) {
+         return verifyCallback(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee));
+     }
+ 
+-    /// @notice Returns the address of a valid Pool
+-    /// @param factory The contract address of the Butter factory
+-    /// @param poolKey The identifying key of the pool
++    /// @notice Returns the address of a valid Uniswap V3 Pool
++    /// @param factory The contract address of the Uniswap V3 factory
++    /// @param poolKey The identifying key of the V3 pool
+     /// @return pool The V3 pool contract address
+     function verifyCallback(address factory, PoolAddress.PoolKey memory poolKey)
+         internal
+         view
+-        returns (IButterPool pool)
++        returns (IUniswapV3Pool pool)
+     {
+-        pool = IButterPool(PoolAddress.computeAddress(factory, poolKey));
++        pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, poolKey));
+         require(msg.sender == address(pool));
+     }
+ }
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/LiquidityAmounts.sol target_code/v3-periphery/contracts/libraries/LiquidityAmounts.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/LiquidityAmounts.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/LiquidityAmounts.sol	2023-12-04 18:14:32
+@@ -1,8 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.5.0;
+ 
+-import '@butter/v3-core/contracts/libraries/FullMath.sol';
+-import '@butter/v3-core/contracts/libraries/FixedPoint96.sol';
++import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
++import '@uniswap/v3-core/contracts/libraries/FixedPoint96.sol';
+ 
+ /// @title Liquidity amount functions
+ /// @notice Provides functions for computing liquidity amounts from token amounts and prices
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/NFTDescriptor.sol target_code/v3-periphery/contracts/libraries/NFTDescriptor.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/NFTDescriptor.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/NFTDescriptor.sol	2023-12-04 18:14:32
+@@ -2,11 +2,10 @@
+ pragma solidity >=0.7.0;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/libraries/BitMath.sol';
+-import '@butter/v3-core/contracts/libraries/FullMath.sol';
+-
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/libraries/BitMath.sol';
++import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
+ import '@openzeppelin/contracts/utils/Strings.sol';
+ import '@openzeppelin/contracts/math/SafeMath.sol';
+ import '@openzeppelin/contracts/math/SignedSafeMath.sol';
+@@ -113,7 +112,7 @@
+         return
+             string(
+                 abi.encodePacked(
+-                    'This NFT represents a liquidity position in a Butter ',
++                    'This NFT represents a liquidity position in a Uniswap V3 ',
+                     quoteTokenSymbol,
+                     '-',
+                     baseTokenSymbol,
+@@ -161,7 +160,7 @@
+         return
+             string(
+                 abi.encodePacked(
+-                    'Butter - ',
++                    'Uniswap - ',
+                     feeTier,
+                     ' - ',
+                     escapeQuotes(params.quoteTokenSymbol),
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/NFTSVG.sol target_code/v3-periphery/contracts/libraries/NFTSVG.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/NFTSVG.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/NFTSVG.sol	2023-12-04 18:14:32
+@@ -2,11 +2,11 @@
+ pragma solidity >=0.7.6;
+ 
+ import '@openzeppelin/contracts/utils/Strings.sol';
+-import '@butter/v3-core/contracts/libraries/BitMath.sol';
++import '@uniswap/v3-core/contracts/libraries/BitMath.sol';
+ import 'base64-sol/base64.sol';
+ 
+ /// @title NFTSVG
+-/// @notice Provides a function for generating an SVG associated with a Butter NFT
++/// @notice Provides a function for generating an SVG associated with a Uniswap NFT
+ library NFTSVG {
+     using Strings for uint256;
+ 
+@@ -46,9 +46,9 @@
+     function generateSVG(SVGParams memory params) internal pure returns (string memory svg) {
+         /*
+         address: "0xe8ab59d3bcde16a29912de83a90eb39628cfc163",
+-        msg: "Forged in SVG for Butter in 2023 by 0xe8ab59d3bcde16a29912de83a90eb39628cfc163",
++        msg: "Forged in SVG for Uniswap in 2021 by 0xe8ab59d3bcde16a29912de83a90eb39628cfc163",
+         sig: "0x2df0e99d9cbfec33a705d83f75666d98b22dea7c1af412c584f7d626d83f02875993df740dc87563b9c73378f8462426da572d7989de88079a382ad96c57b68d1b",
+-        version: "1"
++        version: "2"
+         */
+         return
+             string(
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/OracleLibrary.sol target_code/v3-periphery/contracts/libraries/OracleLibrary.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/OracleLibrary.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/OracleLibrary.sol	2023-12-04 18:14:32
+@@ -1,14 +1,14 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.5.0 <0.8.0;
+ 
+-import '@butter/v3-core/contracts/libraries/FullMath.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ /// @title Oracle library
+ /// @notice Provides functions to integrate with V3 pool oracle
+ library OracleLibrary {
+-    /// @notice Calculates time-weighted means of tick and liquidity for a given pool
++    /// @notice Calculates time-weighted means of tick and liquidity for a given Uniswap V3 pool
+     /// @param pool Address of the pool that we want to observe
+     /// @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
+     /// @return arithmeticMeanTick The arithmetic mean tick from (block.timestamp - secondsAgo) to block.timestamp
+@@ -25,7 +25,7 @@
+         secondsAgos[1] = 0;
+ 
+         (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) =
+-            IButterPool(pool).observe(secondsAgos);
++            IUniswapV3Pool(pool).observe(secondsAgos);
+ 
+         int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
+         uint160 secondsPerLiquidityCumulativesDelta =
+@@ -69,29 +69,29 @@
+     }
+ 
+     /// @notice Given a pool, it returns the number of seconds ago of the oldest stored observation
+-    /// @param pool Address of pool that we want to observe
++    /// @param pool Address of Uniswap V3 pool that we want to observe
+     /// @return secondsAgo The number of seconds ago of the oldest observation stored for the pool
+     function getOldestObservationSecondsAgo(address pool) internal view returns (uint32 secondsAgo) {
+-        (, , uint16 observationIndex, uint16 observationCardinality, , , ) = IButterPool(pool).slot0();
++        (, , uint16 observationIndex, uint16 observationCardinality, , , ) = IUniswapV3Pool(pool).slot0();
+         require(observationCardinality > 0, 'NI');
+ 
+         (uint32 observationTimestamp, , , bool initialized) =
+-            IButterPool(pool).observations((observationIndex + 1) % observationCardinality);
++            IUniswapV3Pool(pool).observations((observationIndex + 1) % observationCardinality);
+ 
+         // The next index might not be initialized if the cardinality is in the process of increasing
+         // In this case the oldest observation is always in index 0
+         if (!initialized) {
+-            (observationTimestamp, , , ) = IButterPool(pool).observations(0);
++            (observationTimestamp, , , ) = IUniswapV3Pool(pool).observations(0);
+         }
+ 
+         secondsAgo = uint32(block.timestamp) - observationTimestamp;
+     }
+ 
+     /// @notice Given a pool, it returns the tick value as of the start of the current block
+-    /// @param pool Address of pool
++    /// @param pool Address of Uniswap V3 pool
+     /// @return The tick that the pool was in at the start of the current block
+     function getBlockStartingTickAndLiquidity(address pool) internal view returns (int24, uint128) {
+-        (, int24 tick, uint16 observationIndex, uint16 observationCardinality, , , ) = IButterPool(pool).slot0();
++        (, int24 tick, uint16 observationIndex, uint16 observationCardinality, , , ) = IUniswapV3Pool(pool).slot0();
+ 
+         // 2 observations are needed to reliably calculate the block starting tick
+         require(observationCardinality > 1, 'NEO');
+@@ -100,9 +100,9 @@
+         // therefore the tick in `slot0` is the same as at the beginning of the current block.
+         // We don't need to check if this observation is initialized - it is guaranteed to be.
+         (uint32 observationTimestamp, int56 tickCumulative, uint160 secondsPerLiquidityCumulativeX128, ) =
+-            IButterPool(pool).observations(observationIndex);
++            IUniswapV3Pool(pool).observations(observationIndex);
+         if (observationTimestamp != uint32(block.timestamp)) {
+-            return (tick, IButterPool(pool).liquidity());
++            return (tick, IUniswapV3Pool(pool).liquidity());
+         }
+ 
+         uint256 prevIndex = (uint256(observationIndex) + observationCardinality - 1) % observationCardinality;
+@@ -111,7 +111,7 @@
+             int56 prevTickCumulative,
+             uint160 prevSecondsPerLiquidityCumulativeX128,
+             bool prevInitialized
+-        ) = IButterPool(pool).observations(prevIndex);
++        ) = IUniswapV3Pool(pool).observations(prevIndex);
+ 
+         require(prevInitialized, 'ONI');
+ 
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/PoolAddress.sol target_code/v3-periphery/contracts/libraries/PoolAddress.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/PoolAddress.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/PoolAddress.sol	2023-12-04 18:14:32
+@@ -3,7 +3,7 @@
+ 
+ /// @title Provides functions for deriving a pool address from the factory, tokens, and the fee
+ library PoolAddress {
+-    bytes32 internal constant POOL_INIT_CODE_HASH = 0xc7d06444331e4f63b0764bb53c88788882395aa31961eed3c2768cc9568323ee;
++    bytes32 internal constant POOL_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
+ 
+     /// @notice The identifying key of the pool
+     struct PoolKey {
+@@ -27,7 +27,7 @@
+     }
+ 
+     /// @notice Deterministically computes the pool address given the factory and PoolKey
+-    /// @param factory The Butter factory contract address
++    /// @param factory The Uniswap V3 factory contract address
+     /// @param key The PoolKey
+     /// @return pool The contract address of the V3 pool
+     function computeAddress(address factory, PoolKey memory key) internal pure returns (address pool) {
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/PoolTicksCounter.sol target_code/v3-periphery/contracts/libraries/PoolTicksCounter.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/PoolTicksCounter.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/PoolTicksCounter.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.6.0;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ library PoolTicksCounter {
+     /// @dev This function counts the number of initialized ticks that would incur a gas cost between tickBefore and tickAfter.
+@@ -9,7 +9,7 @@
+     /// direction of the swap. If we are swapping upwards (tickAfter > tickBefore) we don't want to count tickBefore but we do
+     /// want to count tickAfter. The opposite is true if we are swapping downwards.
+     function countInitializedTicksCrossed(
+-        IButterPool self,
++        IUniswapV3Pool self,
+         int24 tickBefore,
+         int24 tickAfter
+     ) internal view returns (uint32 initializedTicksCrossed) {
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/PositionValue.sol target_code/v3-periphery/contracts/libraries/PositionValue.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/PositionValue.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/PositionValue.sol	2023-12-04 18:14:32
+@@ -1,21 +1,20 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.6.8 <0.8.0;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/libraries/FixedPoint128.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/libraries/Tick.sol';
+-
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/libraries/FixedPoint128.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/libraries/Tick.sol';
+ import '../interfaces/INonfungiblePositionManager.sol';
+ import './LiquidityAmounts.sol';
+ import './PoolAddress.sol';
+ import './PositionKey.sol';
+ 
+-/// @title Returns information about the token value held in a Butter NFT
++/// @title Returns information about the token value held in a Uniswap V3 NFT
+ library PositionValue {
+     /// @notice Returns the total amounts of token0 and token1, i.e. the sum of fees and principal
+     /// that a given nonfungible position manager token is worth
+-    /// @param positionManager The Butter NonfungiblePositionManager
++    /// @param positionManager The Uniswap V3 NonfungiblePositionManager
+     /// @param tokenId The tokenId of the token for which to get the total value
+     /// @param sqrtRatioX96 The square root price X96 for which to calculate the principal amounts
+     /// @return amount0 The total amount of token0 including principal and fees
+@@ -32,7 +31,7 @@
+ 
+     /// @notice Calculates the principal (currently acting as liquidity) owed to the token owner in the event
+     /// that the position is burned
+-    /// @param positionManager The Butter NonfungiblePositionManager
++    /// @param positionManager The Uniswap V3 NonfungiblePositionManager
+     /// @param tokenId The tokenId of the token for which to get the total principal owed
+     /// @param sqrtRatioX96 The square root price X96 for which to calculate the principal amounts
+     /// @return amount0 The principal amount of token0
+@@ -67,7 +66,7 @@
+     }
+ 
+     /// @notice Calculates the total fees owed to the token owner
+-    /// @param positionManager The Butter NonfungiblePositionManager
++    /// @param positionManager The Uniswap V3 NonfungiblePositionManager
+     /// @param tokenId The tokenId of the token for which to get the total fees owed
+     /// @return amount0 The amount of fees owed in token0
+     /// @return amount1 The amount of fees owed in token1
+@@ -116,7 +115,7 @@
+     {
+         (uint256 poolFeeGrowthInside0LastX128, uint256 poolFeeGrowthInside1LastX128) =
+             _getFeeGrowthInside(
+-                IButterPool(
++                IUniswapV3Pool(
+                     PoolAddress.computeAddress(
+                         positionManager.factory(),
+                         PoolAddress.PoolKey({token0: feeParams.token0, token1: feeParams.token1, fee: feeParams.fee})
+@@ -144,7 +143,7 @@
+     }
+ 
+     function _getFeeGrowthInside(
+-        IButterPool pool,
++        IUniswapV3Pool pool,
+         int24 tickLower,
+         int24 tickUpper
+     ) private view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+Only in source_code/swap-contracts/components/v3-periphery/contracts/libraries: SafeERC20Namer.sol
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/libraries/SqrtPriceMathPartial.sol target_code/v3-periphery/contracts/libraries/SqrtPriceMathPartial.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/libraries/SqrtPriceMathPartial.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/libraries/SqrtPriceMathPartial.sol	2023-12-04 18:14:32
+@@ -1,12 +1,12 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.5.0;
+ 
+-import '@butter/v3-core/contracts/libraries/FullMath.sol';
+-import '@butter/v3-core/contracts/libraries/UnsafeMath.sol';
+-import '@butter/v3-core/contracts/libraries/FixedPoint96.sol';
++import '@uniswap/v3-core/contracts/libraries/FullMath.sol';
++import '@uniswap/v3-core/contracts/libraries/UnsafeMath.sol';
++import '@uniswap/v3-core/contracts/libraries/FixedPoint96.sol';
+ 
+ /// @title Functions based on Q64.96 sqrt price and liquidity
+-/// @notice Exposes two functions from @butter/v3-core SqrtPriceMath
++/// @notice Exposes two functions from @uniswap/v3-core SqrtPriceMath
+ /// that use square root of price as a Q64.96 and liquidity to compute deltas
+ library SqrtPriceMathPartial {
+     /// @notice Gets the amount0 delta between two prices
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/test/MockObservations.sol target_code/v3-periphery/contracts/test/MockObservations.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/test/MockObservations.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/test/MockObservations.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: UNLICENSED
+ pragma solidity =0.7.6;
+ 
+-import '@butter/v3-core/contracts/libraries/Oracle.sol';
++import '@uniswap/v3-core/contracts/libraries/Oracle.sol';
+ 
+ contract MockObservations {
+     Oracle.Observation[4] internal oracleObservations;
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/test/PoolTicksCounterTest.sol target_code/v3-periphery/contracts/test/PoolTicksCounterTest.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/test/PoolTicksCounterTest.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/test/PoolTicksCounterTest.sol	2023-12-04 18:14:32
+@@ -1,15 +1,15 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ pragma solidity >=0.6.0;
+ 
+ import '../libraries/PoolTicksCounter.sol';
+ 
+ contract PoolTicksCounterTest {
+-    using PoolTicksCounter for IButterPool;
++    using PoolTicksCounter for IUniswapV3Pool;
+ 
+     function countInitializedTicksCrossed(
+-        IButterPool pool,
++        IUniswapV3Pool pool,
+         int24 tickBefore,
+         int24 tickAfter
+     ) external view returns (uint32 initializedTicksCrossed) {
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/test/TestCallbackValidation.sol target_code/v3-periphery/contracts/test/TestCallbackValidation.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/test/TestCallbackValidation.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/test/TestCallbackValidation.sol	2023-12-04 18:14:32
+@@ -9,7 +9,7 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) external view returns (IButterPool pool) {
++    ) external view returns (IUniswapV3Pool pool) {
+         return CallbackValidation.verifyCallback(factory, tokenA, tokenB, fee);
+     }
+ }
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/test/TestUniswapV3Callee.sol target_code/v3-periphery/contracts/test/TestUniswapV3Callee.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/test/TestUniswapV3Callee.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/test/TestUniswapV3Callee.sol	2023-12-04 18:14:32
+@@ -1,12 +1,12 @@
+ // SPDX-License-Identifier: UNLICENSED
+ pragma solidity =0.7.6;
+ 
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+ 
+-contract TestButterCallee is IButterSwapCallback {
++contract TestUniswapV3Callee is IUniswapV3SwapCallback {
+     using SafeCast for uint256;
+ 
+     function swapExact0For1(
+@@ -15,7 +15,7 @@
+         address recipient,
+         uint160 sqrtPriceLimitX96
+     ) external {
+-        IButterPool(pool).swap(recipient, true, amount0In.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
++        IUniswapV3Pool(pool).swap(recipient, true, amount0In.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
+     }
+ 
+     function swap0ForExact1(
+@@ -24,7 +24,7 @@
+         address recipient,
+         uint160 sqrtPriceLimitX96
+     ) external {
+-        IButterPool(pool).swap(recipient, true, -amount1Out.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
++        IUniswapV3Pool(pool).swap(recipient, true, -amount1Out.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
+     }
+ 
+     function swapExact1For0(
+@@ -33,7 +33,7 @@
+         address recipient,
+         uint160 sqrtPriceLimitX96
+     ) external {
+-        IButterPool(pool).swap(recipient, false, amount1In.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
++        IUniswapV3Pool(pool).swap(recipient, false, amount1In.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
+     }
+ 
+     function swap1ForExact0(
+@@ -42,10 +42,10 @@
+         address recipient,
+         uint160 sqrtPriceLimitX96
+     ) external {
+-        IButterPool(pool).swap(recipient, false, -amount0Out.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
++        IUniswapV3Pool(pool).swap(recipient, false, -amount0Out.toInt256(), sqrtPriceLimitX96, abi.encode(msg.sender));
+     }
+ 
+-    function butterSwapCallback(
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes calldata data
+@@ -53,10 +53,10 @@
+         address sender = abi.decode(data, (address));
+ 
+         if (amount0Delta > 0) {
+-            IERC20(IButterPool(msg.sender).token0()).transferFrom(sender, msg.sender, uint256(amount0Delta));
++            IERC20(IUniswapV3Pool(msg.sender).token0()).transferFrom(sender, msg.sender, uint256(amount0Delta));
+         } else {
+             assert(amount1Delta > 0);
+-            IERC20(IButterPool(msg.sender).token1()).transferFrom(sender, msg.sender, uint256(amount1Delta));
++            IERC20(IUniswapV3Pool(msg.sender).token1()).transferFrom(sender, msg.sender, uint256(amount1Delta));
+         }
+     }
+ }
+diff --color -ur source_code/swap-contracts/components/v3-periphery/contracts/test/TickLensTest.sol target_code/v3-periphery/contracts/test/TickLensTest.sol
+--- source_code/swap-contracts/components/v3-periphery/contracts/test/TickLensTest.sol	2023-12-04 18:14:31
++++ target_code/v3-periphery/contracts/test/TickLensTest.sol	2023-12-04 18:14:32
+@@ -2,7 +2,7 @@
+ pragma solidity >=0.5.0;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ import '../lens/TickLens.sol';
+ 
+ /// @title Tick Lens contract
+Only in source_code/swap-contracts/components/v3-periphery: deploy.ts
+Only in target_code/v3-periphery: deploys.md
+diff --color -ur source_code/swap-contracts/components/v3-periphery/hardhat.config.ts target_code/v3-periphery/hardhat.config.ts
+--- source_code/swap-contracts/components/v3-periphery/hardhat.config.ts	2023-12-04 18:14:31
++++ target_code/v3-periphery/hardhat.config.ts	2023-12-04 18:14:32
+@@ -1,19 +1,9 @@
+-delete require.cache[require.resolve('hardhat')];
+ import '@nomiclabs/hardhat-ethers'
+ import '@nomiclabs/hardhat-etherscan'
+ import '@nomiclabs/hardhat-waffle'
+-import '@openzeppelin/hardhat-upgrades'
+ import 'hardhat-typechain'
+ import 'hardhat-watcher'
+ 
+-const CONSOLE_CYAN = '\x1b[96m';
+-const CONSOLE_NORMAL = '\x1b[0m';
+-
+-function log(...message) {
+-  console.log(CONSOLE_CYAN, ...message, CONSOLE_NORMAL);
+-}
+-log('v3-periphery hardhat config');
+-
+ const LOW_OPTIMIZER_COMPILER_SETTINGS = {
+   version: '0.7.6',
+   settings: {
+@@ -56,36 +46,6 @@
+   },
+ }
+ 
+-// const V3_CORE_SOLIDITY_SETTINGS = {
+-//   version: '0.7.6',
+-//   settings: {
+-//     optimizer: {
+-//       enabled: true,
+-//       runs: 800,
+-//     },
+-//     metadata: {
+-//       // do not include the metadata hash, since this is machine dependent
+-//       // and we want all generated code to be deterministic
+-//       // https://docs.soliditylang.org/en/v0.7.6/metadata.html
+-//       bytecodeHash: 'none',
+-//     },
+-//   },
+-// };
+-
+-// const SOLIDITY_SETTINGS_BY_DIRECTORY = {
+-//   'v3-core': V3_CORE_SOLIDITY_SETTINGS,
+-// }
+-// const SOLIDITY_SETTINGS: Record<string, any> = {};
+-
+-// for (const [folder, settings] of Object.entries(SOLIDITY_SETTINGS_BY_DIRECTORY)) {
+-//   const paths = globSync(`./contracts/${folder}/**/*.sol`);
+-//   for (const file of paths) {
+-//     SOLIDITY_SETTINGS[file] = settings;
+-//   }
+-// }
+-
+-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+-
+ export default {
+   networks: {
+     hardhat: {
+@@ -118,36 +78,20 @@
+     optimism: {
+       url: `https://optimism-mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
+     },
+-    mantleTestnet: {
+-      url: 'https://rpc.testnet.mantle.xyz',
+-      accounts: [DEPLOYER_PRIVATE_KEY],
+-    },
+   },
+   etherscan: {
+     // Your API key for Etherscan
+     // Obtain one at https://etherscan.io/
+-    apiKey: {
+-      mantleTestnet: process.env.ETHERSCAN_API_KEY ?? 'not required',
+-    },
+-    customChains: [
+-      {
+-        network: 'mantleTestnet',
+-        chainId: 5001,
+-        urls: {
+-          apiURL: 'https://explorer.testnet.mantle.xyz/api',
+-          browserURL: 'https://explorer.testnet.mantle.xyz',
+-        }
+-      }
+-    ],
++    apiKey: process.env.ETHERSCAN_API_KEY,
+   },
+   solidity: {
+     compilers: [DEFAULT_COMPILER_SETTINGS],
+     overrides: {
+-      'contracts/v3-periphery/NonfungiblePositionManager.sol': LOW_OPTIMIZER_COMPILER_SETTINGS,
+-      'contracts/v3-periphery/test/MockTimeNonfungiblePositionManager.sol': LOW_OPTIMIZER_COMPILER_SETTINGS,
+-      'contracts/v3-periphery/test/NFTDescriptorTest.sol': LOWEST_OPTIMIZER_COMPILER_SETTINGS,
+-      'contracts/v3-periphery/NonfungibleTokenPositionDescriptor.sol': LOWEST_OPTIMIZER_COMPILER_SETTINGS,
+-      'contracts/v3-periphery/libraries/NFTDescriptor.sol': LOWEST_OPTIMIZER_COMPILER_SETTINGS,
++      'contracts/NonfungiblePositionManager.sol': LOW_OPTIMIZER_COMPILER_SETTINGS,
++      'contracts/test/MockTimeNonfungiblePositionManager.sol': LOW_OPTIMIZER_COMPILER_SETTINGS,
++      'contracts/test/NFTDescriptorTest.sol': LOWEST_OPTIMIZER_COMPILER_SETTINGS,
++      'contracts/NonfungibleTokenPositionDescriptor.sol': LOWEST_OPTIMIZER_COMPILER_SETTINGS,
++      'contracts/libraries/NFTDescriptor.sol': LOWEST_OPTIMIZER_COMPILER_SETTINGS,
+     },
+   },
+   watcher: {
+Only in target_code/v3-periphery: package.json
+Only in target_code/v3-periphery: testnet-deploys.md
+Only in target_code/v3-periphery: tsconfig.json
+Only in target_code/v3-periphery: yarn.lock

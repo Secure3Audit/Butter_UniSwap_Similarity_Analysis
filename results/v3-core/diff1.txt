@@ -1,0 +1,174 @@
+Only in target_code/v3-core: .gitattributes
+Only in target_code/v3-core: .github
+Only in target_code/v3-core: .gitignore
+Only in target_code/v3-core: .prettierrc
+Only in target_code/v3-core: .solhint.json
+Only in target_code/v3-core: .yarnrc
+Only in target_code/v3-core: LICENSE
+Only in target_code/v3-core: README.md
+Only in target_code/v3-core: audits
+Only in target_code/v3-core: bug-bounty.md
+Only in source_code/swap-contracts/components/v3-core/contracts: ButterFactory.sol
+Only in source_code/swap-contracts/components/v3-core/contracts: ButterPool.sol
+Only in source_code/swap-contracts/components/v3-core/contracts: ButterPoolDeployer.sol
+Only in target_code/v3-core/contracts: UniswapV3Factory.sol
+Only in target_code/v3-core/contracts: UniswapV3Pool.sol
+Only in target_code/v3-core/contracts: UniswapV3PoolDeployer.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces: IButterFactory.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces: IButterPool.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces: IButterPoolDeployer.sol
+diff --color -ur source_code/swap-contracts/components/v3-core/contracts/interfaces/IERC20Minimal.sol target_code/v3-core/contracts/interfaces/IERC20Minimal.sol
+--- source_code/swap-contracts/components/v3-core/contracts/interfaces/IERC20Minimal.sol	2023-12-04 18:14:31
++++ target_code/v3-core/contracts/interfaces/IERC20Minimal.sol	2023-12-04 18:14:32
+@@ -1,8 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.5.0;
+ 
+-/// @title Minimal ERC20 interface for Butter
+-/// @notice Contains a subset of the full ERC20 interface that is used in Butter
++/// @title Minimal ERC20 interface for Uniswap
++/// @notice Contains a subset of the full ERC20 interface that is used in Uniswap V3
+ interface IERC20Minimal {
+     /// @notice Returns the balance of a token
+     /// @param account The account for which to look up the number of tokens it has, i.e. its balance
+Only in target_code/v3-core/contracts/interfaces: IUniswapV3Factory.sol
+Only in target_code/v3-core/contracts/interfaces: IUniswapV3Pool.sol
+Only in target_code/v3-core/contracts/interfaces: IUniswapV3PoolDeployer.sol
+diff --color -ur source_code/swap-contracts/components/v3-core/contracts/interfaces/LICENSE target_code/v3-core/contracts/interfaces/LICENSE
+--- source_code/swap-contracts/components/v3-core/contracts/interfaces/LICENSE	2023-12-04 18:14:31
++++ target_code/v3-core/contracts/interfaces/LICENSE	2023-12-04 18:14:32
+@@ -352,16 +352,16 @@
+ 
+ Parameters
+ 
+-Licensor:             Butter
++Licensor:             Uniswap Labs
+ 
+-Licensed Work:        Butter DEX
+-                      The Licensed Work is (c) 2023 Butter.xyz
++Licensed Work:        Uniswap V3 Core
++                      The Licensed Work is (c) 2021 Uniswap Labs
+ 
+ Additional Use Grant: Any uses listed and defined at
+-                      butter.xyz
++                      v3-core-license-grants.uniswap.eth
+ 
+-Change Date:          The earlier of 2023-07-16 or a date specified at
+-                      butter.xyz
++Change Date:          The earlier of 2023-04-01 or a date specified at
++                      v3-core-license-date.uniswap.eth
+ 
+ Change License:       GNU General Public License v2.0 or later
+ 
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/callback: IButterFlashCallback.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/callback: IButterMintCallback.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/callback: IButterSwapCallback.sol
+Only in target_code/v3-core/contracts/interfaces/callback: IUniswapV3FlashCallback.sol
+Only in target_code/v3-core/contracts/interfaces/callback: IUniswapV3MintCallback.sol
+Only in target_code/v3-core/contracts/interfaces/callback: IUniswapV3SwapCallback.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/pool: IButterPoolActions.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/pool: IButterPoolDerivedState.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/pool: IButterPoolEvents.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/pool: IButterPoolImmutables.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/pool: IButterPoolOwnerActions.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/interfaces/pool: IButterPoolState.sol
+Only in target_code/v3-core/contracts/interfaces/pool: IUniswapV3PoolActions.sol
+Only in target_code/v3-core/contracts/interfaces/pool: IUniswapV3PoolDerivedState.sol
+Only in target_code/v3-core/contracts/interfaces/pool: IUniswapV3PoolEvents.sol
+Only in target_code/v3-core/contracts/interfaces/pool: IUniswapV3PoolImmutables.sol
+Only in target_code/v3-core/contracts/interfaces/pool: IUniswapV3PoolOwnerActions.sol
+Only in target_code/v3-core/contracts/interfaces/pool: IUniswapV3PoolState.sol
+diff --color -ur source_code/swap-contracts/components/v3-core/contracts/libraries/LICENSE target_code/v3-core/contracts/libraries/LICENSE
+--- source_code/swap-contracts/components/v3-core/contracts/libraries/LICENSE	2023-12-04 18:14:31
++++ target_code/v3-core/contracts/libraries/LICENSE	2023-12-04 18:14:32
+@@ -352,16 +352,16 @@
+ 
+ Parameters
+ 
+-Licensor:             Butter
++Licensor:             Uniswap Labs
+ 
+-Licensed Work:        Butter
+-                      The Licensed Work is (c) 2023 Butter.xyz
++Licensed Work:        Uniswap V3 Core
++                      The Licensed Work is (c) 2021 Uniswap Labs
+ 
+ Additional Use Grant: Any uses listed and defined at
+-                      butter.xyz
++                      v3-core-license-grants.uniswap.eth
+ 
+-Change Date:          The earlier of 2023-07-16 or a date specified at
+-                      butter.xyz
++Change Date:          The earlier of 2023-04-01 or a date specified at
++                      v3-core-license-date.uniswap.eth
+ 
+ Change License:       GNU General Public License v2.0 or later
+ 
+Only in source_code/swap-contracts/components/v3-core/contracts/test: ButterPoolSwapTest.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/test: MockTimeButterPool.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/test: MockTimeButterPoolDeployer.sol
+Only in target_code/v3-core/contracts/test: MockTimeUniswapV3Pool.sol
+Only in target_code/v3-core/contracts/test: MockTimeUniswapV3PoolDeployer.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/test: TestButterCallee.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/test: TestButterReentrantCallee.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/test: TestButterRouter.sol
+Only in source_code/swap-contracts/components/v3-core/contracts/test: TestButterSwapPay.sol
+Only in target_code/v3-core/contracts/test: TestUniswapV3Callee.sol
+Only in target_code/v3-core/contracts/test: TestUniswapV3ReentrantCallee.sol
+Only in target_code/v3-core/contracts/test: TestUniswapV3Router.sol
+Only in target_code/v3-core/contracts/test: TestUniswapV3SwapPay.sol
+Only in target_code/v3-core/contracts/test: UniswapV3PoolSwapTest.sol
+Only in source_code/swap-contracts/components/v3-core: deploy.ts
+Only in target_code/v3-core: echidna.config.yml
+diff --color -ur source_code/swap-contracts/components/v3-core/hardhat.config.ts target_code/v3-core/hardhat.config.ts
+--- source_code/swap-contracts/components/v3-core/hardhat.config.ts	2023-12-04 18:14:31
++++ target_code/v3-core/hardhat.config.ts	2023-12-04 18:14:32
+@@ -3,15 +3,6 @@
+ import '@nomiclabs/hardhat-waffle'
+ import '@nomiclabs/hardhat-etherscan'
+ 
+-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+-const CONSOLE_CYAN = '\x1b[96m';
+-const CONSOLE_NORMAL = '\x1b[0m';
+-
+-function log(...message) {
+-  console.log(CONSOLE_CYAN, ...message, CONSOLE_NORMAL);
+-}
+-log('v3-core hardhat config');
+-
+ export default {
+   networks: {
+     hardhat: {
+@@ -53,27 +44,11 @@
+     bnb: {
+       url: `https://bsc-dataseed.binance.org/`,
+     },
+-    mantleTestnet: {
+-      url: 'https://rpc.testnet.mantle.xyz',
+-      accounts: [DEPLOYER_PRIVATE_KEY],
+-    },
+   },
+   etherscan: {
+     // Your API key for Etherscan
+     // Obtain one at https://etherscan.io/
+-    apiKey: {
+-      mantleTestnet: process.env.ETHERSCAN_API_KEY ?? 'not required',
+-    },
+-    customChains: [
+-      {
+-        network: 'mantleTestnet',
+-        chainId: 5001,
+-        urls: {
+-          apiURL: 'https://explorer.testnet.mantle.xyz/api',
+-          browserURL: 'https://explorer.testnet.mantle.xyz',
+-        }
+-      }
+-    ],
++    apiKey: process.env.ETHERSCAN_API_KEY,
+   },
+   solidity: {
+     version: '0.7.6',
+Only in target_code/v3-core: package.json
+Only in target_code/v3-core: test
+Only in target_code/v3-core: tsconfig.json
+Only in target_code/v3-core: yarn.lock
