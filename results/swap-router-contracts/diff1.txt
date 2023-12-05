@@ -1,0 +1,850 @@
+Only in target_code/swap-router-contracts: .gitattributes
+Only in target_code/swap-router-contracts: .github
+Only in target_code/swap-router-contracts: .gitignore
+Only in target_code/swap-router-contracts: .prettierignore
+Only in target_code/swap-router-contracts: .prettierrc
+Only in target_code/swap-router-contracts: .solhint.json
+Only in target_code/swap-router-contracts: .yarnrc
+Only in source_code/swap-contracts/components/swap-router-contracts: @butter
+Only in target_code/swap-router-contracts: LICENSE
+Only in target_code/swap-router-contracts: README.md
+Only in target_code/swap-router-contracts: bug-bounty.md
+Only in source_code/swap-contracts/components/swap-router-contracts/contracts: LegacySwapRouter.sol
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/SwapRouter02.sol target_code/swap-router-contracts/contracts/SwapRouter02.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/SwapRouter02.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/SwapRouter02.sol	2023-12-04 18:14:32
+@@ -2,21 +2,21 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-periphery/contracts/base/SelfPermit.sol';
+-import '@butter/v3-periphery/contracts/base/PeripheryImmutableState.sol';
++import '@uniswap/v3-periphery/contracts/base/SelfPermit.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryImmutableState.sol';
+ 
+ import './interfaces/ISwapRouter02.sol';
+-import './LegacySwapRouter.sol';
++import './V2SwapRouter.sol';
+ import './V3SwapRouter.sol';
+ import './base/ApproveAndCall.sol';
+ import './base/MulticallExtended.sol';
+ 
+-/// @title Butter & Legacy Swap Router
+-contract SwapRouter02 is ISwapRouter02, LegacySwapRouter, V3SwapRouter, ApproveAndCall, MulticallExtended, SelfPermit {
++/// @title Uniswap V2 and V3 Swap Router
++contract SwapRouter02 is ISwapRouter02, V2SwapRouter, V3SwapRouter, ApproveAndCall, MulticallExtended, SelfPermit {
+     constructor(
+-        address _legacyFactory,
++        address _factoryV2,
+         address factoryV3,
+         address _positionManager,
+         address _WETH9
+-    ) ImmutableState(_legacyFactory, _positionManager) PeripheryImmutableState(factoryV3, _WETH9) {}
++    ) ImmutableState(_factoryV2, _positionManager) PeripheryImmutableState(factoryV3, _WETH9) {}
+ }
+Only in target_code/swap-router-contracts/contracts: V2SwapRouter.sol
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/V3SwapRouter.sol target_code/swap-router-contracts/contracts/V3SwapRouter.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/V3SwapRouter.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/V3SwapRouter.sol	2023-12-04 18:14:32
+@@ -2,12 +2,12 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-periphery/contracts/libraries/Path.sol';
+-import '@butter/v3-periphery/contracts/libraries/PoolAddress.sol';
+-import '@butter/v3-periphery/contracts/libraries/CallbackValidation.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-periphery/contracts/libraries/Path.sol';
++import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
++import '@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol';
+ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+ 
+ import './interfaces/IV3SwapRouter.sol';
+@@ -15,8 +15,8 @@
+ import './base/OracleSlippage.sol';
+ import './libraries/Constants.sol';
+ 
+-/// @title Butter Swap Router
+-/// @notice Router for stateless execution of swaps
++/// @title Uniswap V3 Swap Router
++/// @notice Router for stateless execution of swaps against Uniswap V3
+ abstract contract V3SwapRouter is IV3SwapRouter, PeripheryPaymentsWithFeeExtended, OracleSlippage {
+     using Path for bytes;
+     using SafeCast for uint256;
+@@ -33,8 +33,8 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) private view returns (IButterPool) {
+-        return IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) private view returns (IUniswapV3Pool) {
++        return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+     struct SwapCallbackData {
+@@ -42,8 +42,8 @@
+         address payer;
+     }
+ 
+-    /// @inheritdoc IButterSwapCallback
+-    function butterSwapCallback(
++    /// @inheritdoc IUniswapV3SwapCallback
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes calldata _data
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/base/ApproveAndCall.sol target_code/swap-router-contracts/contracts/base/ApproveAndCall.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/base/ApproveAndCall.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/base/ApproveAndCall.sol	2023-12-04 18:14:32
+@@ -3,13 +3,13 @@
+ pragma abicoder v2;
+ 
+ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+-import '@butter/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
++import '@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol';
+ 
+ import '../interfaces/IApproveAndCall.sol';
+ import './ImmutableState.sol';
+ 
+ /// @title Approve and Call
+-/// @notice Allows callers to approve the position manager from this contract,
++/// @notice Allows callers to approve the Uniswap V3 position manager from this contract,
+ /// for any token, and then make calls into the position manager
+ abstract contract ApproveAndCall is IApproveAndCall, ImmutableState {
+     function tryApprove(address token, uint256 amount) private returns (bool) {
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/base/ImmutableState.sol target_code/swap-router-contracts/contracts/base/ImmutableState.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/base/ImmutableState.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/base/ImmutableState.sol	2023-12-04 18:14:32
+@@ -11,8 +11,8 @@
+     /// @inheritdoc IImmutableState
+     address public immutable override positionManager;
+ 
+-    constructor(address _legacyFactory, address _positionManager) {
+-        factoryV2 = _legacyFactory;
++    constructor(address _factoryV2, address _positionManager) {
++        factoryV2 = _factoryV2;
+         positionManager = _positionManager;
+     }
+ }
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/base/MulticallExtended.sol target_code/swap-router-contracts/contracts/base/MulticallExtended.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/base/MulticallExtended.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/base/MulticallExtended.sol	2023-12-04 18:14:32
+@@ -2,7 +2,7 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-periphery/contracts/base/Multicall.sol';
++import '@uniswap/v3-periphery/contracts/base/Multicall.sol';
+ 
+ import '../interfaces/IMulticallExtended.sol';
+ import '../base/PeripheryValidationExtended.sol';
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/base/OracleSlippage.sol target_code/swap-router-contracts/contracts/base/OracleSlippage.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/base/OracleSlippage.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/base/OracleSlippage.sol	2023-12-04 18:14:32
+@@ -4,18 +4,18 @@
+ 
+ import '../interfaces/IOracleSlippage.sol';
+ 
+-import '@butter/v3-periphery/contracts/base/PeripheryImmutableState.sol';
+-import '@butter/v3-periphery/contracts/base/BlockTimestamp.sol';
+-import '@butter/v3-periphery/contracts/libraries/Path.sol';
+-import '@butter/v3-periphery/contracts/libraries/PoolAddress.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-periphery/contracts/libraries/OracleLibrary.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryImmutableState.sol';
++import '@uniswap/v3-periphery/contracts/base/BlockTimestamp.sol';
++import '@uniswap/v3-periphery/contracts/libraries/Path.sol';
++import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol';
+ 
+ abstract contract OracleSlippage is IOracleSlippage, PeripheryImmutableState, BlockTimestamp {
+     using Path for bytes;
+ 
+     /// @dev Returns the tick as of the beginning of the current block, and as of right now, for the given pool.
+-    function getBlockStartingAndCurrentTick(IButterPool pool)
++    function getBlockStartingAndCurrentTick(IUniswapV3Pool pool)
+         internal
+         view
+         returns (int24 blockStartingTick, int24 currentTick)
+@@ -50,8 +50,8 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) internal view virtual returns (IButterPool pool) {
+-        pool = IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) internal view virtual returns (IUniswapV3Pool pool) {
++        pool = IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+     /// @dev Returns the synthetic time-weighted average tick as of secondsAgo, as well as the current tick,
+@@ -69,7 +69,7 @@
+         for (uint256 i = 0; i < numPools; i++) {
+             // this assumes the path is sorted in swap order
+             (address tokenIn, address tokenOut, uint24 fee) = path.decodeFirstPool();
+-            IButterPool pool = getPoolAddress(tokenIn, tokenOut, fee);
++            IUniswapV3Pool pool = getPoolAddress(tokenIn, tokenOut, fee);
+ 
+             // get the average and current ticks for the current pool
+             int256 averageTick;
+@@ -79,7 +79,7 @@
+                 (averageTick, currentTick) = getBlockStartingAndCurrentTick(pool);
+             } else {
+                 (averageTick, ) = OracleLibrary.consult(address(pool), secondsAgo);
+-                (, currentTick, , , , , ) = IButterPool(pool).slot0();
++                (, currentTick, , , , , ) = IUniswapV3Pool(pool).slot0();
+             }
+ 
+             if (i == numPools - 1) {
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/base/PeripheryPaymentsExtended.sol target_code/swap-router-contracts/contracts/base/PeripheryPaymentsExtended.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/base/PeripheryPaymentsExtended.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/base/PeripheryPaymentsExtended.sol	2023-12-04 18:14:32
+@@ -1,8 +1,8 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.7.5;
+ 
+-import '@butter/v3-periphery/contracts/base/PeripheryPayments.sol';
+-import '@butter/v3-periphery/contracts/libraries/TransferHelper.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryPayments.sol';
++import '@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol';
+ 
+ import '../interfaces/IPeripheryPaymentsExtended.sol';
+ 
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/base/PeripheryPaymentsWithFeeExtended.sol target_code/swap-router-contracts/contracts/base/PeripheryPaymentsWithFeeExtended.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/base/PeripheryPaymentsWithFeeExtended.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/base/PeripheryPaymentsWithFeeExtended.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.7.5;
+ 
+-import '@butter/v3-periphery/contracts/base/PeripheryPaymentsWithFee.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryPaymentsWithFee.sol';
+ 
+ import '../interfaces/IPeripheryPaymentsWithFeeExtended.sol';
+ import './PeripheryPaymentsExtended.sol';
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/base/PeripheryValidationExtended.sol target_code/swap-router-contracts/contracts/base/PeripheryValidationExtended.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/base/PeripheryValidationExtended.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/base/PeripheryValidationExtended.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity =0.7.6;
+ 
+-import '@butter/v3-periphery/contracts/base/PeripheryValidation.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryValidation.sol';
+ 
+ abstract contract PeripheryValidationExtended is PeripheryValidation {
+     modifier checkPreviousBlockhash(bytes32 previousBlockhash) {
+Only in source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces: IButterLegacyCallee.sol
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IImmutableState.sol target_code/swap-router-contracts/contracts/interfaces/IImmutableState.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IImmutableState.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/interfaces/IImmutableState.sol	2023-12-04 18:14:32
+@@ -4,9 +4,9 @@
+ /// @title Immutable state
+ /// @notice Functions that return immutable state of the router
+ interface IImmutableState {
+-    /// @return Returns the address of the legacy factory
++    /// @return Returns the address of the Uniswap V2 factory
+     function factoryV2() external view returns (address);
+ 
+-    /// @return Returns the address of Butter NFT position manager
++    /// @return Returns the address of Uniswap V3 NFT position manager
+     function positionManager() external view returns (address);
+ }
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IMulticallExtended.sol target_code/swap-router-contracts/contracts/interfaces/IMulticallExtended.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IMulticallExtended.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/interfaces/IMulticallExtended.sol	2023-12-04 18:14:32
+@@ -2,7 +2,7 @@
+ pragma solidity >=0.7.5;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-periphery/contracts/interfaces/IMulticall.sol';
++import '@uniswap/v3-periphery/contracts/interfaces/IMulticall.sol';
+ 
+ /// @title MulticallExtended interface
+ /// @notice Enables calling multiple methods in a single call to the contract with optional validation
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsExtended.sol target_code/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsExtended.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsExtended.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsExtended.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.7.5;
+ 
+-import '@butter/v3-periphery/contracts/interfaces/IPeripheryPayments.sol';
++import '@uniswap/v3-periphery/contracts/interfaces/IPeripheryPayments.sol';
+ 
+ /// @title Periphery Payments Extended
+ /// @notice Functions to ease deposits and withdrawals of ETH and tokens
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsWithFeeExtended.sol target_code/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsWithFeeExtended.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsWithFeeExtended.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/interfaces/IPeripheryPaymentsWithFeeExtended.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.7.5;
+ 
+-import '@butter/v3-periphery/contracts/interfaces/IPeripheryPaymentsWithFee.sol';
++import '@uniswap/v3-periphery/contracts/interfaces/IPeripheryPaymentsWithFee.sol';
+ 
+ import './IPeripheryPaymentsExtended.sol';
+ 
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/ISwapRouter02.sol target_code/swap-router-contracts/contracts/interfaces/ISwapRouter02.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/ISwapRouter02.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/interfaces/ISwapRouter02.sol	2023-12-04 18:14:32
+@@ -2,7 +2,7 @@
+ pragma solidity >=0.7.5;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-periphery/contracts/interfaces/ISelfPermit.sol';
++import '@uniswap/v3-periphery/contracts/interfaces/ISelfPermit.sol';
+ 
+ import './IV2SwapRouter.sol';
+ import './IV3SwapRouter.sol';
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IV2SwapRouter.sol target_code/swap-router-contracts/contracts/interfaces/IV2SwapRouter.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IV2SwapRouter.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/interfaces/IV2SwapRouter.sol	2023-12-04 18:14:32
+@@ -3,7 +3,7 @@
+ pragma abicoder v2;
+ 
+ /// @title Router token swapping functionality
+-/// @notice Functions for swapping tokens via Butter legacy
++/// @notice Functions for swapping tokens via Uniswap V2
+ interface IV2SwapRouter {
+     /// @notice Swaps `amountIn` of one token for as much as possible of another token
+     /// @dev Setting `amountIn` to 0 will cause the contract to look up its own balance,
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IV3SwapRouter.sol target_code/swap-router-contracts/contracts/interfaces/IV3SwapRouter.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/interfaces/IV3SwapRouter.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/interfaces/IV3SwapRouter.sol	2023-12-04 18:14:32
+@@ -2,11 +2,11 @@
+ pragma solidity >=0.7.5;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
+ 
+ /// @title Router token swapping functionality
+-/// @notice Functions for swapping tokens via Butter
+-interface IV3SwapRouter is IButterSwapCallback {
++/// @notice Functions for swapping tokens via Uniswap V3
++interface IV3SwapRouter is IUniswapV3SwapCallback {
+     struct ExactInputSingleParams {
+         address tokenIn;
+         address tokenOut;
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/lens/MixedRouteQuoterV1.sol target_code/swap-router-contracts/contracts/lens/MixedRouteQuoterV1.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/lens/MixedRouteQuoterV1.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/lens/MixedRouteQuoterV1.sol	2023-12-04 18:14:32
+@@ -2,31 +2,31 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-periphery/contracts/base/PeripheryImmutableState.sol';
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/libraries/TickBitmap.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
+-import '@butter/v3-periphery/contracts/libraries/Path.sol';
+-import '@butter/v3-periphery/contracts/libraries/PoolAddress.sol';
+-import '@butter/v3-periphery/contracts/libraries/CallbackValidation.sol';
+-import '@butter/v3-periphery/contracts/interfaces/IButterLegacyPair.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryImmutableState.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/libraries/TickBitmap.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
++import '@uniswap/v3-periphery/contracts/libraries/Path.sol';
++import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
++import '@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol';
++import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
+ 
+ import '../base/ImmutableState.sol';
+ import '../interfaces/IMixedRouteQuoterV1.sol';
+ import '../libraries/PoolTicksCounter.sol';
+-import '../libraries/ButterLegacyLibrary.sol';
++import '../libraries/UniswapV2Library.sol';
+ 
+ /// @title Provides on chain quotes for V3, V2, and MixedRoute exact input swaps
+ /// @notice Allows getting the expected amount out for a given swap without executing the swap
+ /// @notice Does not support exact output swaps since using the contract balance between exactOut swaps is not supported
+ /// @dev These functions are not gas efficient and should _not_ be called on chain. Instead, optimistically execute
+ /// the swap and check the amounts in the callback.
+-contract MixedRouteQuoterV1 is IMixedRouteQuoterV1, IButterSwapCallback, PeripheryImmutableState {
++contract MixedRouteQuoterV1 is IMixedRouteQuoterV1, IUniswapV3SwapCallback, PeripheryImmutableState {
+     using Path for bytes;
+     using SafeCast for uint256;
+-    using PoolTicksCounter for IButterPool;
++    using PoolTicksCounter for IUniswapV3Pool;
+     address public immutable factoryV2;
+     /// @dev Value to bit mask with path fee to determine if V2 or V3 route
+     // max V3 fee:           000011110100001001000000 (24 bits)
+@@ -38,18 +38,18 @@
+ 
+     constructor(
+         address _factory,
+-        address _legacyFactory,
++        address _factoryV2,
+         address _WETH9
+     ) PeripheryImmutableState(_factory, _WETH9) {
+-        factoryV2 = _legacyFactory;
++        factoryV2 = _factoryV2;
+     }
+ 
+     function getPool(
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) private view returns (IButterPool) {
+-        return IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) private view returns (IUniswapV3Pool) {
++        return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+     /// @dev Given an amountIn, fetch the reserves of the V2 pair and get the amountOut
+@@ -58,12 +58,12 @@
+         address tokenIn,
+         address tokenOut
+     ) private view returns (uint256) {
+-        (uint256 reserveIn, uint256 reserveOut) = ButterLegacyLibrary.getReserves(factoryV2, tokenIn, tokenOut);
+-        return ButterLegacyLibrary.getAmountOut(amountIn, reserveIn, reserveOut);
++        (uint256 reserveIn, uint256 reserveOut) = UniswapV2Library.getReserves(factoryV2, tokenIn, tokenOut);
++        return UniswapV2Library.getAmountOut(amountIn, reserveIn, reserveOut);
+     }
+ 
+-    /// @inheritdoc IButterSwapCallback
+-    function butterSwapCallback(
++    /// @inheritdoc IUniswapV3SwapCallback
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes memory path
+@@ -77,7 +77,7 @@
+                 ? (tokenIn < tokenOut, uint256(-amount1Delta))
+                 : (tokenOut < tokenIn, uint256(-amount0Delta));
+ 
+-        IButterPool pool = getPool(tokenIn, tokenOut, fee);
++        IUniswapV3Pool pool = getPool(tokenIn, tokenOut, fee);
+         (uint160 v3SqrtPriceX96After, int24 tickAfter, , , , , ) = pool.slot0();
+ 
+         if (isExactInput) {
+@@ -116,7 +116,7 @@
+ 
+     function handleV3Revert(
+         bytes memory reason,
+-        IButterPool pool,
++        IUniswapV3Pool pool,
+         uint256 gasEstimate
+     )
+         private
+@@ -150,7 +150,7 @@
+         )
+     {
+         bool zeroForOne = params.tokenIn < params.tokenOut;
+-        IButterPool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
++        IUniswapV3Pool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
+ 
+         uint256 gasBefore = gasleft();
+         try
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/lens/Quoter.sol target_code/swap-router-contracts/contracts/lens/Quoter.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/lens/Quoter.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/lens/Quoter.sol	2023-12-04 18:14:32
+@@ -2,14 +2,14 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-periphery/contracts/base/PeripheryImmutableState.sol';
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
+-import '@butter/v3-periphery/contracts/libraries/Path.sol';
+-import '@butter/v3-periphery/contracts/libraries/PoolAddress.sol';
+-import '@butter/v3-periphery/contracts/libraries/CallbackValidation.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryImmutableState.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
++import '@uniswap/v3-periphery/contracts/libraries/Path.sol';
++import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
++import '@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol';
+ 
+ import '../interfaces/IQuoter.sol';
+ 
+@@ -17,7 +17,7 @@
+ /// @notice Allows getting the expected amount out or amount in for a given swap without executing the swap
+ /// @dev These functions are not gas efficient and should _not_ be called on chain. Instead, optimistically execute
+ /// the swap and check the amounts in the callback.
+-contract Quoter is IQuoter, IButterSwapCallback, PeripheryImmutableState {
++contract Quoter is IQuoter, IUniswapV3SwapCallback, PeripheryImmutableState {
+     using Path for bytes;
+     using SafeCast for uint256;
+ 
+@@ -30,12 +30,12 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) private view returns (IButterPool) {
+-        return IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) private view returns (IUniswapV3Pool) {
++        return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+-    /// @inheritdoc IButterSwapCallback
+-    function butterSwapCallback(
++    /// @inheritdoc IUniswapV3SwapCallback
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes memory path
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/lens/QuoterV2.sol target_code/swap-router-contracts/contracts/lens/QuoterV2.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/lens/QuoterV2.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/lens/QuoterV2.sol	2023-12-04 18:14:32
+@@ -2,15 +2,15 @@
+ pragma solidity =0.7.6;
+ pragma abicoder v2;
+ 
+-import '@butter/v3-periphery/contracts/base/PeripheryImmutableState.sol';
+-import '@butter/v3-core/contracts/libraries/SafeCast.sol';
+-import '@butter/v3-core/contracts/libraries/TickMath.sol';
+-import '@butter/v3-core/contracts/libraries/TickBitmap.sol';
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
+-import '@butter/v3-core/contracts/interfaces/callback/IButterSwapCallback.sol';
+-import '@butter/v3-periphery/contracts/libraries/Path.sol';
+-import '@butter/v3-periphery/contracts/libraries/PoolAddress.sol';
+-import '@butter/v3-periphery/contracts/libraries/CallbackValidation.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryImmutableState.sol';
++import '@uniswap/v3-core/contracts/libraries/SafeCast.sol';
++import '@uniswap/v3-core/contracts/libraries/TickMath.sol';
++import '@uniswap/v3-core/contracts/libraries/TickBitmap.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
++import '@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol';
++import '@uniswap/v3-periphery/contracts/libraries/Path.sol';
++import '@uniswap/v3-periphery/contracts/libraries/PoolAddress.sol';
++import '@uniswap/v3-periphery/contracts/libraries/CallbackValidation.sol';
+ 
+ import '../interfaces/IQuoterV2.sol';
+ import '../libraries/PoolTicksCounter.sol';
+@@ -19,10 +19,10 @@
+ /// @notice Allows getting the expected amount out or amount in for a given swap without executing the swap
+ /// @dev These functions are not gas efficient and should _not_ be called on chain. Instead, optimistically execute
+ /// the swap and check the amounts in the callback.
+-contract QuoterV2 is IQuoterV2, IButterSwapCallback, PeripheryImmutableState {
++contract QuoterV2 is IQuoterV2, IUniswapV3SwapCallback, PeripheryImmutableState {
+     using Path for bytes;
+     using SafeCast for uint256;
+-    using PoolTicksCounter for IButterPool;
++    using PoolTicksCounter for IUniswapV3Pool;
+ 
+     /// @dev Transient storage variable used to check a safety condition in exact output swaps.
+     uint256 private amountOutCached;
+@@ -33,12 +33,12 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) private view returns (IButterPool) {
+-        return IButterPool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
++    ) private view returns (IUniswapV3Pool) {
++        return IUniswapV3Pool(PoolAddress.computeAddress(factory, PoolAddress.getPoolKey(tokenA, tokenB, fee)));
+     }
+ 
+-    /// @inheritdoc IButterSwapCallback
+-    function butterSwapCallback(
++    /// @inheritdoc IUniswapV3SwapCallback
++    function uniswapV3SwapCallback(
+         int256 amount0Delta,
+         int256 amount1Delta,
+         bytes memory path
+@@ -52,7 +52,7 @@
+                 ? (tokenIn < tokenOut, uint256(amount0Delta), uint256(-amount1Delta))
+                 : (tokenOut < tokenIn, uint256(amount1Delta), uint256(-amount0Delta));
+ 
+-        IButterPool pool = getPool(tokenIn, tokenOut, fee);
++        IUniswapV3Pool pool = getPool(tokenIn, tokenOut, fee);
+         (uint160 sqrtPriceX96After, int24 tickAfter, , , , , ) = pool.slot0();
+ 
+         if (isExactInput) {
+@@ -98,7 +98,7 @@
+ 
+     function handleRevert(
+         bytes memory reason,
+-        IButterPool pool,
++        IUniswapV3Pool pool,
+         uint256 gasEstimate
+     )
+         private
+@@ -131,7 +131,7 @@
+         )
+     {
+         bool zeroForOne = params.tokenIn < params.tokenOut;
+-        IButterPool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
++        IUniswapV3Pool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
+ 
+         uint256 gasBefore = gasleft();
+         try
+@@ -205,7 +205,7 @@
+         )
+     {
+         bool zeroForOne = params.tokenIn < params.tokenOut;
+-        IButterPool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
++        IUniswapV3Pool pool = getPool(params.tokenIn, params.tokenOut, params.fee);
+ 
+         // if no price limit has been specified, cache the output amount for comparison in the swap callback
+         if (params.sqrtPriceLimitX96 == 0) amountOutCached = params.amount;
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/lens/TokenValidator.sol target_code/swap-router-contracts/contracts/lens/TokenValidator.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/lens/TokenValidator.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/lens/TokenValidator.sol	2023-12-04 18:14:32
+@@ -3,10 +3,10 @@
+ pragma abicoder v2;
+ 
+ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+-import '@butter/v3-periphery/contracts/base/PeripheryImmutableState.sol';
+-import '@butter/v3-periphery/contracts/interfaces/IButterLegacyPair.sol';
+-import '../libraries/ButterLegacyLibrary.sol';
+-import '../interfaces/IButterLegacyCallee.sol';
++import '@uniswap/v3-periphery/contracts/base/PeripheryImmutableState.sol';
++import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Callee.sol';
++import '@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol';
++import '../libraries/UniswapV2Library.sol';
+ import '../interfaces/ISwapRouter02.sol';
+ import '../interfaces/ITokenValidator.sol';
+ import '../base/ImmutableState.sol';
+@@ -25,11 +25,12 @@
+ /// @dev    in all circumstances.
+ /// @dev 2/ It is possible that the token does not have any pools on V2 therefore we are not able to perform
+ /// @dev    a flashloan to test the token.
+-contract TokenValidator is ITokenValidator, IButterLegacyCallee, ImmutableState {
++contract TokenValidator is ITokenValidator, IUniswapV2Callee, ImmutableState {
+     string internal constant FOT_REVERT_STRING = 'FOT';
++    // https://github.com/Uniswap/v2-core/blob/1136544ac842ff48ae0b1b939701436598d74075/contracts/UniswapV2Pair.sol#L46
+     string internal constant STF_REVERT_STRING_SUFFIX = 'TRANSFER_FAILED';
+ 
+-    constructor(address _legacyFactory, address _positionManager) ImmutableState(_legacyFactory, _positionManager) {}
++    constructor(address _factoryV2, address _positionManager) ImmutableState(_factoryV2, _positionManager) {}
+ 
+     function batchValidate(
+         address[] calldata tokens,
+@@ -65,11 +66,11 @@
+             return Status.UNKN;
+         }
+ 
+-        address pairAddress = ButterLegacyLibrary.pairFor(this.factoryV2(), token, baseToken);
++        address pairAddress = UniswapV2Library.pairFor(this.factoryV2(), token, baseToken);
+ 
+         // If the token/baseToken pair exists, get token0.
+         // Must do low level call as try/catch does not support case where contract does not exist.
+-        (, bytes memory returnData) = address(pairAddress).call(abi.encodeWithSelector(IButterLegacyPair.token0.selector));
++        (, bytes memory returnData) = address(pairAddress).call(abi.encodeWithSelector(IUniswapV2Pair.token0.selector));
+ 
+         if (returnData.length == 0) {
+             return Status.UNKN;
+@@ -83,7 +84,7 @@
+ 
+         uint256 balanceBeforeLoan = IERC20(token).balanceOf(address(this));
+ 
+-        IButterLegacyPair pair = IButterLegacyPair(pairAddress);
++        IUniswapV2Pair pair = IUniswapV2Pair(pairAddress);
+ 
+         try
+             pair.swap(amount0Out, amount1Out, address(this), abi.encode(balanceBeforeLoan, amountToBorrow))
+@@ -130,13 +131,13 @@
+         return transferFailed;
+     }
+ 
+-    function butterLegacyCall(
++    function uniswapV2Call(
+         address,
+         uint256 amount0,
+         uint256,
+         bytes calldata data
+     ) external view override {
+-        IButterLegacyPair pair = IButterLegacyPair(msg.sender);
++        IUniswapV2Pair pair = IUniswapV2Pair(msg.sender);
+         (address token0, address token1) = (pair.token0(), pair.token1());
+ 
+         IERC20 tokenBorrowed = IERC20(amount0 > 0 ? token0 : token1);
+Only in source_code/swap-contracts/components/swap-router-contracts/contracts/libraries: ButterLegacyLibrary.sol
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/libraries/PoolTicksCounter.sol target_code/swap-router-contracts/contracts/libraries/PoolTicksCounter.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/libraries/PoolTicksCounter.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/libraries/PoolTicksCounter.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ pragma solidity >=0.6.0;
+ 
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ library PoolTicksCounter {
+     /// @dev This function counts the number of initialized ticks that would incur a gas cost between tickBefore and tickAfter.
+@@ -9,7 +9,7 @@
+     /// direction of the swap. If we are swapping upwards (tickAfter > tickBefore) we don't want to count tickBefore but we do
+     /// want to count tickAfter. The opposite is true if we are swapping downwards.
+     function countInitializedTicksCrossed(
+-        IButterPool self,
++        IUniswapV3Pool self,
+         int24 tickBefore,
+         int24 tickAfter
+     ) internal view returns (uint32 initializedTicksCrossed) {
+Only in target_code/swap-router-contracts/contracts/libraries: UniswapV2Library.sol
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/test/ImmutableStateTest.sol target_code/swap-router-contracts/contracts/test/ImmutableStateTest.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/test/ImmutableStateTest.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/test/ImmutableStateTest.sol	2023-12-04 18:14:32
+@@ -4,5 +4,5 @@
+ import '../base/ImmutableState.sol';
+ 
+ contract ImmutableStateTest is ImmutableState {
+-    constructor(address _legacyFactory, address _positionManager) ImmutableState(_legacyFactory, _positionManager) {}
++    constructor(address _factoryV2, address _positionManager) ImmutableState(_factoryV2, _positionManager) {}
+ }
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/test/MockObservations.sol target_code/swap-router-contracts/contracts/test/MockObservations.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/test/MockObservations.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/test/MockObservations.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: UNLICENSED
+ pragma solidity =0.7.6;
+ 
+-import '@butter/v3-core/contracts/libraries/Oracle.sol';
++import '@uniswap/v3-core/contracts/libraries/Oracle.sol';
+ 
+ contract MockObservations {
+     using Oracle for Oracle.Observation[65535];
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/test/MockTimeSwapRouter.sol target_code/swap-router-contracts/contracts/test/MockTimeSwapRouter.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/test/MockTimeSwapRouter.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/test/MockTimeSwapRouter.sol	2023-12-04 18:14:32
+@@ -8,11 +8,11 @@
+     uint256 time;
+ 
+     constructor(
+-        address _legacyFactory,
++        address _factoryV2,
+         address factoryV3,
+         address _positionManager,
+         address _WETH9
+-    ) SwapRouter02(_legacyFactory, factoryV3, _positionManager, _WETH9) {}
++    ) SwapRouter02(_factoryV2, factoryV3, _positionManager, _WETH9) {}
+ 
+     function _blockTimestamp() internal view override returns (uint256) {
+         return time;
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/test/OracleSlippageTest.sol target_code/swap-router-contracts/contracts/test/OracleSlippageTest.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/test/OracleSlippageTest.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/test/OracleSlippageTest.sol	2023-12-04 18:14:32
+@@ -5,7 +5,7 @@
+ import '../base/OracleSlippage.sol';
+ 
+ contract OracleSlippageTest is OracleSlippage {
+-    mapping(address => mapping(address => mapping(uint24 => IButterPool))) private pools;
++    mapping(address => mapping(address => mapping(uint24 => IUniswapV3Pool))) private pools;
+     uint256 internal time;
+ 
+     constructor(address _factory, address _WETH9) PeripheryImmutableState(_factory, _WETH9) {}
+@@ -19,7 +19,7 @@
+     }
+ 
+     function registerPool(
+-        IButterPool pool,
++        IUniswapV3Pool pool,
+         address tokenIn,
+         address tokenOut,
+         uint24 fee
+@@ -32,11 +32,11 @@
+         address tokenA,
+         address tokenB,
+         uint24 fee
+-    ) internal view override returns (IButterPool pool) {
++    ) internal view override returns (IUniswapV3Pool pool) {
+         pool = pools[tokenA][tokenB][fee];
+     }
+ 
+-    function testGetBlockStartingAndCurrentTick(IButterPool pool)
++    function testGetBlockStartingAndCurrentTick(IUniswapV3Pool pool)
+         external
+         view
+         returns (int24 blockStartingTick, int24 currentTick)
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/contracts/test/PoolTicksCounterTest.sol target_code/swap-router-contracts/contracts/test/PoolTicksCounterTest.sol
+--- source_code/swap-contracts/components/swap-router-contracts/contracts/test/PoolTicksCounterTest.sol	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/contracts/test/PoolTicksCounterTest.sol	2023-12-04 18:14:32
+@@ -1,15 +1,15 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+-import '@butter/v3-core/contracts/interfaces/IButterPool.sol';
++import '@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol';
+ 
+ pragma solidity >=0.6.0;
+ 
+ import '../libraries/PoolTicksCounter.sol';
+ 
+ contract PoolTicksCounterTest {
+-    using PoolTicksCounter for IButterPool;
++    using PoolTicksCounter for IUniswapV3Pool;
+ 
+     function countInitializedTicksCrossed(
+-        IButterPool pool,
++        IUniswapV3Pool pool,
+         int24 tickBefore,
+         int24 tickAfter
+     ) external view returns (uint32 initializedTicksCrossed) {
+Only in source_code/swap-contracts/components/swap-router-contracts/contracts/test: TestButterCallee.sol
+Only in target_code/swap-router-contracts/contracts/test: TestUniswapV3Callee.sol
+Only in source_code/swap-contracts/components/swap-router-contracts: deploy.ts
+diff --color -ur source_code/swap-contracts/components/swap-router-contracts/hardhat.config.ts target_code/swap-router-contracts/hardhat.config.ts
+--- source_code/swap-contracts/components/swap-router-contracts/hardhat.config.ts	2023-12-04 18:14:31
++++ target_code/swap-router-contracts/hardhat.config.ts	2023-12-04 18:14:32
+@@ -5,14 +5,6 @@
+ import 'hardhat-watcher'
+ import 'dotenv/config'
+ 
+-const CONSOLE_CYAN = '\x1b[96m';
+-const CONSOLE_NORMAL = '\x1b[0m';
+-
+-function log(...message) {
+-  console.log(CONSOLE_CYAN, ...message, CONSOLE_NORMAL);
+-}
+-log('swap-router-contracts hardhat config');
+-
+ const DEFAULT_COMPILER_SETTINGS = {
+   version: '0.7.6',
+   settings: {
+@@ -27,8 +19,6 @@
+   },
+ }
+ 
+-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+-
+ export default {
+   networks: {
+     hardhat: {
+@@ -61,27 +51,11 @@
+     optimism: {
+       url: `https://mainnet.optimism.io`,
+     },
+-    mantleTestnet: {
+-      url: 'https://rpc.testnet.mantle.xyz',
+-      accounts: [DEPLOYER_PRIVATE_KEY],
+-    },
+   },
+   etherscan: {
+     // Your API key for Etherscan
+     // Obtain one at https://etherscan.io/
+-    apiKey: {
+-      mantleTestnet: process.env.ETHERSCAN_API_KEY ?? 'not required',
+-    },
+-    customChains: [
+-      {
+-        network: 'mantleTestnet',
+-        chainId: 5001,
+-        urls: {
+-          apiURL: 'https://explorer.testnet.mantle.xyz/api',
+-          browserURL: 'https://explorer.testnet.mantle.xyz',
+-        }
+-      }
+-    ],
++    apiKey: process.env.ETHERSCAN_API_KEY,
+   },
+   solidity: {
+     compilers: [DEFAULT_COMPILER_SETTINGS],
+Only in target_code/swap-router-contracts: package.json
+Only in target_code/swap-router-contracts: test
+Only in target_code/swap-router-contracts: tsconfig.json
+Only in target_code/swap-router-contracts: yarn.lock

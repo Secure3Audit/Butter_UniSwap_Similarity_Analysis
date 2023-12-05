@@ -1,0 +1,251 @@
+--- source_code/swap-contracts/components/v3-core/contracts/ButterPool.sol	2023-12-04 18:14:31
++++ target_code/v3-core/contracts/UniswapV3Pool.sol	2023-12-04 18:14:32
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: BUSL-1.1
+ pragma solidity =0.7.6;
+ 
+-import './interfaces/IButterPool.sol';
++import './interfaces/IUniswapV3Pool.sol';
+ 
+ import './NoDelegateCall.sol';
+ 
+@@ -20,14 +20,14 @@
+ import './libraries/SqrtPriceMath.sol';
+ import './libraries/SwapMath.sol';
+ 
+-import './interfaces/IButterPoolDeployer.sol';
+-import './interfaces/IButterFactory.sol';
++import './interfaces/IUniswapV3PoolDeployer.sol';
++import './interfaces/IUniswapV3Factory.sol';
+ import './interfaces/IERC20Minimal.sol';
+-import './interfaces/callback/IButterMintCallback.sol';
+-import './interfaces/callback/IButterSwapCallback.sol';
+-import './interfaces/callback/IButterFlashCallback.sol';
++import './interfaces/callback/IUniswapV3MintCallback.sol';
++import './interfaces/callback/IUniswapV3SwapCallback.sol';
++import './interfaces/callback/IUniswapV3FlashCallback.sol';
+ 
+-contract ButterPool is IButterPool, NoDelegateCall {
++contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
+     using LowGasSafeMath for uint256;
+     using LowGasSafeMath for int256;
+     using SafeCast for uint256;
+@@ -38,19 +38,19 @@
+     using Position for Position.Info;
+     using Oracle for Oracle.Observation[65535];
+ 
+-    /// @inheritdoc IButterPoolImmutables
++    /// @inheritdoc IUniswapV3PoolImmutables
+     address public immutable override factory;
+-    /// @inheritdoc IButterPoolImmutables
++    /// @inheritdoc IUniswapV3PoolImmutables
+     address public immutable override token0;
+-    /// @inheritdoc IButterPoolImmutables
++    /// @inheritdoc IUniswapV3PoolImmutables
+     address public immutable override token1;
+-    /// @inheritdoc IButterPoolImmutables
++    /// @inheritdoc IUniswapV3PoolImmutables
+     uint24 public immutable override fee;
+ 
+-    /// @inheritdoc IButterPoolImmutables
++    /// @inheritdoc IUniswapV3PoolImmutables
+     int24 public immutable override tickSpacing;
+ 
+-    /// @inheritdoc IButterPoolImmutables
++    /// @inheritdoc IUniswapV3PoolImmutables
+     uint128 public immutable override maxLiquidityPerTick;
+ 
+     struct Slot0 {
+@@ -70,12 +70,12 @@
+         // whether the pool is locked
+         bool unlocked;
+     }
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     Slot0 public override slot0;
+ 
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     uint256 public override feeGrowthGlobal0X128;
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     uint256 public override feeGrowthGlobal1X128;
+ 
+     // accumulated protocol fees in token0/token1 units
+@@ -83,19 +83,19 @@
+         uint128 token0;
+         uint128 token1;
+     }
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     ProtocolFees public override protocolFees;
+ 
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     uint128 public override liquidity;
+ 
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     mapping(int24 => Tick.Info) public override ticks;
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     mapping(int16 => uint256) public override tickBitmap;
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     mapping(bytes32 => Position.Info) public override positions;
+-    /// @inheritdoc IButterPoolState
++    /// @inheritdoc IUniswapV3PoolState
+     Oracle.Observation[65535] public override observations;
+ 
+     /// @dev Mutually exclusive reentrancy protection into the pool to/from a method. This method also prevents entrance
+@@ -108,15 +108,15 @@
+         slot0.unlocked = true;
+     }
+ 
+-    /// @dev Prevents calling a function from anyone except the address returned by IButterFactory#owner()
++    /// @dev Prevents calling a function from anyone except the address returned by IUniswapV3Factory#owner()
+     modifier onlyFactoryOwner() {
+-        require(msg.sender == IButterFactory(factory).owner());
++        require(msg.sender == IUniswapV3Factory(factory).owner());
+         _;
+     }
+ 
+     constructor() {
+         int24 _tickSpacing;
+-        (factory, token0, token1, fee, _tickSpacing) = IButterPoolDeployer(msg.sender).parameters();
++        (factory, token0, token1, fee, _tickSpacing) = IUniswapV3PoolDeployer(msg.sender).parameters();
+         tickSpacing = _tickSpacing;
+ 
+         maxLiquidityPerTick = Tick.tickSpacingToMaxLiquidityPerTick(_tickSpacing);
+@@ -154,7 +154,7 @@
+         return abi.decode(data, (uint256));
+     }
+ 
+-    /// @inheritdoc IButterPoolDerivedState
++    /// @inheritdoc IUniswapV3PoolDerivedState
+     function snapshotCumulativesInside(int24 tickLower, int24 tickUpper)
+         external
+         view
+@@ -232,7 +232,7 @@
+         }
+     }
+ 
+-    /// @inheritdoc IButterPoolDerivedState
++    /// @inheritdoc IUniswapV3PoolDerivedState
+     function observe(uint32[] calldata secondsAgos)
+         external
+         view
+@@ -251,7 +251,7 @@
+             );
+     }
+ 
+-    /// @inheritdoc IButterPoolActions
++    /// @inheritdoc IUniswapV3PoolActions
+     function increaseObservationCardinalityNext(uint16 observationCardinalityNext)
+         external
+         override
+@@ -266,7 +266,7 @@
+             emit IncreaseObservationCardinalityNext(observationCardinalityNextOld, observationCardinalityNextNew);
+     }
+ 
+-    /// @inheritdoc IButterPoolActions
++    /// @inheritdoc IUniswapV3PoolActions
+     /// @dev not locked because it initializes unlocked
+     function initialize(uint160 sqrtPriceX96) external override {
+         require(slot0.sqrtPriceX96 == 0, 'AI');
+@@ -452,7 +452,7 @@
+         }
+     }
+ 
+-    /// @inheritdoc IButterPoolActions
++    /// @inheritdoc IUniswapV3PoolActions
+     /// @dev noDelegateCall is applied indirectly via _modifyPosition
+     function mint(
+         address recipient,
+@@ -479,14 +479,14 @@
+         uint256 balance1Before;
+         if (amount0 > 0) balance0Before = balance0();
+         if (amount1 > 0) balance1Before = balance1();
+-        IButterMintCallback(msg.sender).butterMintCallback(amount0, amount1, data);
++        IUniswapV3MintCallback(msg.sender).uniswapV3MintCallback(amount0, amount1, data);
+         if (amount0 > 0) require(balance0Before.add(amount0) <= balance0(), 'M0');
+         if (amount1 > 0) require(balance1Before.add(amount1) <= balance1(), 'M1');
+ 
+         emit Mint(msg.sender, recipient, tickLower, tickUpper, amount, amount0, amount1);
+     }
+ 
+-    /// @inheritdoc IButterPoolActions
++    /// @inheritdoc IUniswapV3PoolActions
+     function collect(
+         address recipient,
+         int24 tickLower,
+@@ -512,7 +512,7 @@
+         emit Collect(msg.sender, recipient, tickLower, tickUpper, amount0, amount1);
+     }
+ 
+-    /// @inheritdoc IButterPoolActions
++    /// @inheritdoc IUniswapV3PoolActions
+     /// @dev noDelegateCall is applied indirectly via _modifyPosition
+     function burn(
+         int24 tickLower,
+@@ -592,7 +592,7 @@
+         uint256 feeAmount;
+     }
+ 
+-    /// @inheritdoc IButterPoolActions
++    /// @inheritdoc IUniswapV3PoolActions
+     function swap(
+         address recipient,
+         bool zeroForOne,
+@@ -773,13 +773,13 @@
+             if (amount1 < 0) TransferHelper.safeTransfer(token1, recipient, uint256(-amount1));
+ 
+             uint256 balance0Before = balance0();
+-            IButterSwapCallback(msg.sender).butterSwapCallback(amount0, amount1, data);
++            IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(amount0, amount1, data);
+             require(balance0Before.add(uint256(amount0)) <= balance0(), 'IIA');
+         } else {
+             if (amount0 < 0) TransferHelper.safeTransfer(token0, recipient, uint256(-amount0));
+ 
+             uint256 balance1Before = balance1();
+-            IButterSwapCallback(msg.sender).butterSwapCallback(amount0, amount1, data);
++            IUniswapV3SwapCallback(msg.sender).uniswapV3SwapCallback(amount0, amount1, data);
+             require(balance1Before.add(uint256(amount1)) <= balance1(), 'IIA');
+         }
+ 
+@@ -787,7 +787,7 @@
+         slot0.unlocked = true;
+     }
+ 
+-    /// @inheritdoc IButterPoolActions
++    /// @inheritdoc IUniswapV3PoolActions
+     function flash(
+         address recipient,
+         uint256 amount0,
+@@ -805,7 +805,7 @@
+         if (amount0 > 0) TransferHelper.safeTransfer(token0, recipient, amount0);
+         if (amount1 > 0) TransferHelper.safeTransfer(token1, recipient, amount1);
+ 
+-        IButterFlashCallback(msg.sender).butterFlashCallback(fee0, fee1, data);
++        IUniswapV3FlashCallback(msg.sender).uniswapV3FlashCallback(fee0, fee1, data);
+ 
+         uint256 balance0After = balance0();
+         uint256 balance1After = balance1();
+@@ -833,7 +833,7 @@
+         emit Flash(msg.sender, recipient, amount0, amount1, paid0, paid1);
+     }
+ 
+-    /// @inheritdoc IButterPoolOwnerActions
++    /// @inheritdoc IUniswapV3PoolOwnerActions
+     function setFeeProtocol(uint8 feeProtocol0, uint8 feeProtocol1) external override lock onlyFactoryOwner {
+         require(
+             (feeProtocol0 == 0 || (feeProtocol0 >= 4 && feeProtocol0 <= 10)) &&
+@@ -844,7 +844,7 @@
+         emit SetFeeProtocol(feeProtocolOld % 16, feeProtocolOld >> 4, feeProtocol0, feeProtocol1);
+     }
+ 
+-    /// @inheritdoc IButterPoolOwnerActions
++    /// @inheritdoc IUniswapV3PoolOwnerActions
+     function collectProtocol(
+         address recipient,
+         uint128 amount0Requested,
