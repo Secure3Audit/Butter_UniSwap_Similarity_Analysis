@@ -131,3 +131,10 @@ Screenshot from Beyond Compare for Reference:
     * [target_code/universal-router/](target_code/universal-router/)
 
 The `source_code/swap-contracts/universal-router/` is an external submodule, however, it seems it is not linked correctly.
+
+
+#### Diff Compare -> package.json
+
+The source package referenced the target's packages.
+
+![](results/package/ss.png)
