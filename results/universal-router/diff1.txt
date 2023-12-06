@@ -1,0 +1,256 @@
+Only in source_code/swap-contracts/universal-router: .DS_Store
+Only in target_code/universal-router: .env.example
+Only in target_code/universal-router: .github
+Only in target_code/universal-router: .gitignore
+Only in target_code/universal-router: .gitmodules
+Only in target_code/universal-router: .nvmrc
+Only in target_code/universal-router: .prettierignore
+Only in target_code/universal-router: .prettierrc
+Only in target_code/universal-router: LICENSE
+Only in target_code/universal-router: README.md
+Only in target_code/universal-router: audit
+Only in source_code/swap-contracts/universal-router/contracts: .DS_Store
+diff --color -ur source_code/swap-contracts/universal-router/contracts/base/Dispatcher.sol target_code/universal-router/contracts/base/Dispatcher.sol
+--- source_code/swap-contracts/universal-router/contracts/base/Dispatcher.sol	2023-12-06 12:23:24
++++ target_code/universal-router/contracts/base/Dispatcher.sol	2023-12-05 17:43:18
+@@ -1,9 +1,9 @@
+ // SPDX-License-Identifier: GPL-3.0-or-later
+ pragma solidity ^0.8.17;
+ 
+-import {LegacySwapRouter} from '../modules/butter/v2/LegacySwapRouter.sol';
+-import {V3SwapRouter} from '../modules/butter/v3/V3SwapRouter.sol';
+-import {BytesLib} from '../modules/butter/v3/BytesLib.sol';
++import {V2SwapRouter} from '../modules/uniswap/v2/V2SwapRouter.sol';
++import {V3SwapRouter} from '../modules/uniswap/v3/V3SwapRouter.sol';
++import {BytesLib} from '../modules/uniswap/v3/BytesLib.sol';
+ import {Payments} from '../modules/Payments.sol';
+ import {RouterImmutables} from '../base/RouterImmutables.sol';
+ import {Callbacks} from '../base/Callbacks.sol';
+@@ -11,13 +11,13 @@
+ import {LockAndMsgSender} from './LockAndMsgSender.sol';
+ import {ERC721} from 'solmate/src/tokens/ERC721.sol';
+ import {ERC1155} from 'solmate/src/tokens/ERC1155.sol';
+-import {ERC20} from './ERC20.sol';
++import {ERC20} from 'solmate/src/tokens/ERC20.sol';
+ import {IAllowanceTransfer} from 'permit2/src/interfaces/IAllowanceTransfer.sol';
+ import {ICryptoPunksMarket} from '../interfaces/external/ICryptoPunksMarket.sol';
+ 
+ /// @title Decodes and Executes Commands
+ /// @notice Called by the UniversalRouter contract to efficiently decode and execute a singular command
+-abstract contract Dispatcher is Payments, LegacySwapRouter, V3SwapRouter, Callbacks, LockAndMsgSender {
++abstract contract Dispatcher is Payments, V2SwapRouter, V3SwapRouter, Callbacks, LockAndMsgSender {
+     using BytesLib for bytes;
+ 
+     error InvalidCommandType(uint256 commandType);
+Only in source_code/swap-contracts/universal-router/contracts/base: ERC20.sol
+diff --color -ur source_code/swap-contracts/universal-router/contracts/base/RewardsCollector.sol target_code/universal-router/contracts/base/RewardsCollector.sol
+--- source_code/swap-contracts/universal-router/contracts/base/RewardsCollector.sol	2023-12-06 12:23:24
++++ target_code/universal-router/contracts/base/RewardsCollector.sol	2023-12-05 17:43:18
+@@ -1,8 +1,8 @@
+ // SPDX-License-Identifier: GPL-3.0-or-later
+ pragma solidity ^0.8.15;
+ 
+-import {ERC20} from './ERC20.sol';
+-import {SafeTransferLib} from '../libraries/SafeTransferLib.sol';
++import {ERC20} from 'solmate/src/tokens/ERC20.sol';
++import {SafeTransferLib} from 'solmate/src/utils/SafeTransferLib.sol';
+ import {RouterImmutables} from './RouterImmutables.sol';
+ import {IRewardsCollector} from '../interfaces/IRewardsCollector.sol';
+ 
+diff --color -ur source_code/swap-contracts/universal-router/contracts/base/RouterImmutables.sol target_code/universal-router/contracts/base/RouterImmutables.sol
+--- source_code/swap-contracts/universal-router/contracts/base/RouterImmutables.sol	2023-12-06 12:23:24
++++ target_code/universal-router/contracts/base/RouterImmutables.sol	2023-12-05 17:43:18
+@@ -2,7 +2,7 @@
+ pragma solidity ^0.8.17;
+ 
+ import {IAllowanceTransfer} from 'permit2/src/interfaces/IAllowanceTransfer.sol';
+-import {ERC20} from './ERC20.sol';
++import {ERC20} from 'solmate/src/tokens/ERC20.sol';
+ import {IWETH9} from '../interfaces/external/IWETH9.sol';
+ 
+ struct RouterParameters {
+@@ -79,17 +79,17 @@
+     /// @dev The address of router rewards distributor
+     address internal immutable ROUTER_REWARDS_DISTRIBUTOR;
+ 
+-    /// @dev The address of ButterLegacyFactory
+-    address internal immutable BUTTER_LEGACY_FACTORY;
++    /// @dev The address of UniswapV2Factory
++    address internal immutable UNISWAP_V2_FACTORY;
+ 
+-    /// @dev The ButterLegacyPair initcodehash
+-    bytes32 internal immutable BUTTER_LEGACY_PAIR_INIT_CODE_HASH;
++    /// @dev The UniswapV2Pair initcodehash
++    bytes32 internal immutable UNISWAP_V2_PAIR_INIT_CODE_HASH;
+ 
+-    /// @dev The address of ButterFactory
+-    address internal immutable BUTTER_TRADE_FACTORY;
++    /// @dev The address of UniswapV3Factory
++    address internal immutable UNISWAP_V3_FACTORY;
+ 
+-    /// @dev The ButterPool initcodehash
+-    bytes32 internal immutable BUTTER_POOL_INIT_CODE_HASH;
++    /// @dev The UniswapV3Pool initcodehash
++    bytes32 internal immutable UNISWAP_V3_POOL_INIT_CODE_HASH;
+ 
+     enum Spenders {
+         OSConduit,
+@@ -113,9 +113,9 @@
+         LOOKS_RARE_TOKEN = ERC20(params.looksRareToken);
+         LOOKS_RARE_REWARDS_DISTRIBUTOR = params.looksRareRewardsDistributor;
+         ROUTER_REWARDS_DISTRIBUTOR = params.routerRewardsDistributor;
+-        BUTTER_LEGACY_FACTORY = params.v2Factory;
+-        BUTTER_LEGACY_PAIR_INIT_CODE_HASH = params.pairInitCodeHash;
+-        BUTTER_TRADE_FACTORY = params.v3Factory;
+-        BUTTER_POOL_INIT_CODE_HASH = params.poolInitCodeHash;
++        UNISWAP_V2_FACTORY = params.v2Factory;
++        UNISWAP_V2_PAIR_INIT_CODE_HASH = params.pairInitCodeHash;
++        UNISWAP_V3_FACTORY = params.v3Factory;
++        UNISWAP_V3_POOL_INIT_CODE_HASH = params.poolInitCodeHash;
+     }
+ }
+diff --color -ur source_code/swap-contracts/universal-router/contracts/interfaces/IRewardsCollector.sol target_code/universal-router/contracts/interfaces/IRewardsCollector.sol
+--- source_code/swap-contracts/universal-router/contracts/interfaces/IRewardsCollector.sol	2023-12-06 12:23:24
++++ target_code/universal-router/contracts/interfaces/IRewardsCollector.sol	2023-12-05 17:43:18
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-3.0-or-later
+ pragma solidity ^0.8.15;
+ 
+-import {ERC20} from '../base/ERC20.sol';
++import {ERC20} from 'solmate/src/tokens/ERC20.sol';
+ 
+ /// @title LooksRare Rewards Collector
+ /// @notice Implements a permissionless call to fetch LooksRare rewards earned by Universal Router users
+Only in source_code/swap-contracts/universal-router/contracts/libraries: SafeTransferLib.sol
+diff --color -ur source_code/swap-contracts/universal-router/contracts/modules/Payments.sol target_code/universal-router/contracts/modules/Payments.sol
+--- source_code/swap-contracts/universal-router/contracts/modules/Payments.sol	2023-12-06 12:23:24
++++ target_code/universal-router/contracts/modules/Payments.sol	2023-12-05 17:43:18
+@@ -3,8 +3,8 @@
+ 
+ import {Constants} from '../libraries/Constants.sol';
+ import {RouterImmutables} from '../base/RouterImmutables.sol';
+-import {SafeTransferLib} from '../libraries/SafeTransferLib.sol';
+-import {ERC20} from '../base/ERC20.sol';
++import {SafeTransferLib} from 'solmate/src/utils/SafeTransferLib.sol';
++import {ERC20} from 'solmate/src/tokens/ERC20.sol';
+ import {ERC721} from 'solmate/src/tokens/ERC721.sol';
+ import {ERC1155} from 'solmate/src/tokens/ERC1155.sol';
+ 
+Only in source_code/swap-contracts/universal-router/contracts/modules: butter
+Only in target_code/universal-router/contracts/modules: uniswap
+diff --color -ur source_code/swap-contracts/universal-router/contracts/test/MintableERC20.sol target_code/universal-router/contracts/test/MintableERC20.sol
+--- source_code/swap-contracts/universal-router/contracts/test/MintableERC20.sol	2023-12-06 12:23:24
++++ target_code/universal-router/contracts/test/MintableERC20.sol	2023-12-05 17:43:18
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-3.0-or-later
+ pragma solidity ^0.8.15;
+ 
+-import {ERC20} from '../base/ERC20.sol';
++import {ERC20} from 'solmate/src/tokens/ERC20.sol';
+ 
+ contract MintableERC20 is ERC20 {
+     constructor(uint256 amountToMint) ERC20('test', 'TEST', 18) {
+diff --color -ur source_code/swap-contracts/universal-router/contracts/test/MockLooksRareRewardsDistributor.sol target_code/universal-router/contracts/test/MockLooksRareRewardsDistributor.sol
+--- source_code/swap-contracts/universal-router/contracts/test/MockLooksRareRewardsDistributor.sol	2023-12-06 12:23:24
++++ target_code/universal-router/contracts/test/MockLooksRareRewardsDistributor.sol	2023-12-05 17:43:18
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: GPL-3.0-or-later
+ pragma solidity ^0.8.15;
+ 
+-import {ERC20} from '../base/ERC20.sol';
++import {ERC20} from 'solmate/src/tokens/ERC20.sol';
+ 
+ contract MockLooksRareRewardsDistributor {
+     address public immutable routerRewardsDistributor;
+Only in target_code/universal-router: deploy-addresses
+Only in source_code/swap-contracts/universal-router: deploy.ts
+diff --color -ur source_code/swap-contracts/universal-router/hardhat.config.ts target_code/universal-router/hardhat.config.ts
+--- source_code/swap-contracts/universal-router/hardhat.config.ts	2023-12-06 12:23:24
++++ target_code/universal-router/hardhat.config.ts	2023-12-05 17:43:18
+@@ -1,6 +1,5 @@
+ import 'hardhat-typechain'
+ import '@nomiclabs/hardhat-ethers'
+-import '@nomiclabs/hardhat-etherscan'
+ import '@nomicfoundation/hardhat-chai-matchers'
+ import dotenv from 'dotenv'
+ dotenv.config()
+@@ -20,8 +19,6 @@
+   },
+ }
+ 
+-const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
+-
+ export default {
+   paths: {
+     sources: './contracts',
+@@ -65,41 +62,6 @@
+     polygon: {
+       url: `https://polygon-mainnet.infura.io/v3/${process.env.INFURA_API_KEY}`,
+     },
+-    mantle: {
+-      url: 'https://rpc.mantle.xyz',
+-      accounts: [DEPLOYER_PRIVATE_KEY],
+-    },
+-    mantleTestnet: {
+-      url: 'https://rpc.testnet.mantle.xyz',
+-      accounts: [DEPLOYER_PRIVATE_KEY],
+-      gas: 300000000000,
+-    },
+-  },
+-  etherscan: {
+-    // Your API key for Etherscan
+-    // Obtain one at https://etherscan.io/
+-    apiKey: {
+-      mantle: process.env.ETHERSCAN_API_KEY ?? 'not required',
+-      mantleTestnet: process.env.ETHERSCAN_API_KEY ?? 'not needed',
+-    },
+-    customChains: [
+-      {
+-        network: 'mantle',
+-        chainId: 5000,
+-        urls: {
+-          apiURL: 'https://explorer.mantle.xyz/api',
+-          browserURL: 'https://explorer.mantle.xyz',
+-        }
+-      },
+-      {
+-        network: 'mantleTestnet',
+-        chainId: 5001,
+-        urls: {
+-          apiURL: 'https://explorer.testnet.mantle.xyz/api',
+-          browserURL: 'https://explorer.testnet.mantle.xyz',
+-        }
+-      }
+-    ],
+   },
+   namedAccounts: {
+     deployer: 0,
+Only in source_code/swap-contracts/universal-router: lib
+diff --color -ur source_code/swap-contracts/universal-router/package.json target_code/universal-router/package.json
+--- source_code/swap-contracts/universal-router/package.json	2023-12-06 12:23:24
++++ target_code/universal-router/package.json	2023-12-05 17:43:18
+@@ -7,7 +7,7 @@
+   },
+   "version": "1.4.3",
+   "keywords": [
+-    "out trade",
++    "uniswap",
+     "router",
+     "universal router",
+     "swap router"
+@@ -36,9 +36,7 @@
+     "@openzeppelin/contracts": "4.7.0"
+   },
+   "devDependencies": {
+-    "@nomicfoundation/hardhat-verify": "^1.0.0",
+     "@nomicfoundation/hardhat-chai-matchers": "1.0.4",
+-    "@nomiclabs/hardhat-etherscan": "^3.1.7",
+     "@nomiclabs/hardhat-ethers": "^2.2.2",
+     "@typechain/ethers-v5": "^4.0.0",
+     "@types/chai": "^4.2.6",
+Only in target_code/universal-router: permit2
+Only in target_code/universal-router: script
+Only in target_code/universal-router: solmate
+Only in target_code/universal-router: test
+Only in source_code/swap-contracts/universal-router: utils.ts
+Only in target_code/universal-router: yarn.lock
