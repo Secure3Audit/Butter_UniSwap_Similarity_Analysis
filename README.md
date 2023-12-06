@@ -129,8 +129,20 @@ Screenshot from Beyond Compare for Reference:
 * Diff:
     * [source_code/swap-contracts/universal-router/](source_code/swap-contracts/universal-router/)
     * [target_code/universal-router/](target_code/universal-router/)
+* Output: [results/universal-router](results/universal-router/)
 
-The `source_code/swap-contracts/universal-router/` is an external submodule, however, it seems it is not linked correctly.
+The `source_code/swap-contracts/universal-router/` is an external submodule, added via commit: https://github.com/butterxyz/swap-contracts/commit/fcc525c209c787615b5aaa42b8cb2a7b32c91410
+
+```
+$ diff -ur source_code/swap-contracts/universal-router/ target_code/universal-router/ > results/universal-router/diff1.txt
+```
+
+Screenshot from Beyond Compare for Reference:
+![ss1.png](results/universal-router/ss1.png)
+![ss2.png](results/universal-router/ss2.png)
+![ss3.png](results/universal-router/ss3.png)
+
+
 
 
 #### Diff Compare -> package.json
